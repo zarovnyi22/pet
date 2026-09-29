@@ -5,6 +5,8 @@ CLI: python -m app.ingest data/corpus/
 
 import argparse
 import asyncio
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -15,6 +17,47 @@ from app.config import get_settings
 from app.db import apply_migrations, create_pool
 from app.embeddings import Embedder
 from app.schemas import DocumentIn
+
+# Row label in a spec's nutrient table -> our nutrient key. Other rows (fibre) are ignored.
+NUTRIENT_ROWS = {
+    "energy": "kcal",
+    "protein": "protein_g",
+    "fat": "fat_g",
+    "carbohydrates": "carbs_g",
+    "of which sugars": "sugar_g",
+}
+NUMBER = re.compile(r"\d+(?:\.\d+)?")
+
+
+def parse_nutrients_table(content: str) -> dict[str, dict[str, float]] | None:
+    """The markdown table under "## Nutrients per 100 g" (the heading may carry a note, e.g.
+    "(blend without hydrocolloid)"), as {column header: {nutrient: value}}.
+
+    Most specs have one value column ("Value"); some compare variants side by side
+    (e.g. bulk vs freeze-dried starter), so every column is kept.
+    """
+    section = re.search(r"^## Nutrients per 100 g\b[^\n]*$(.*?)(?=^## |\Z)", content, re.M | re.S)
+    if not section:
+        return None
+    rows = [
+        [cell.strip() for cell in line.strip().strip("|").split("|")]
+        for line in section.group(1).splitlines()
+        if line.strip().startswith("|") and not set(line.strip()) <= set("|-: ")
+    ]
+    if len(rows) < 2:
+        return None
+    columns = rows[0][1:]
+    table: dict[str, dict[str, float]] = {column: {} for column in columns}
+    for label, *cells in rows[1:]:
+        key = NUTRIENT_ROWS.get(label.lower())
+        if key is None:
+            continue
+        for column, cell in zip(columns, cells, strict=False):
+            number = NUMBER.search(cell)  # "100 g (polyols)" -> 100
+            if number:
+                table[column][key] = float(number.group())
+    table = {column: values for column, values in table.items() if values}
+    return table or None
 
 
 def to_pgvector(vector: list[float]) -> str:
@@ -33,23 +76,26 @@ async def ingest_document(pool: asyncpg.Pool, embedder: Embedder, doc: DocumentI
         settings.chunk_overlap_tokens,
     )
     embeddings = await asyncio.to_thread(embedder.embed, chunks)
+    nutrients = parse_nutrients_table(doc.content)
 
     async with pool.acquire() as conn, conn.transaction():
         # The upsert row-locks the document, so concurrent re-ingests of one doc_id
         # serialize here instead of interleaving their chunks.
         await conn.execute(
             """
-            INSERT INTO documents (doc_id, title, doc_type, content)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO documents (doc_id, title, doc_type, content, nutrients_per_100g)
+            VALUES ($1, $2, $3, $4, $5::jsonb)
             ON CONFLICT (doc_id) DO UPDATE
               SET title = EXCLUDED.title,
                   doc_type = EXCLUDED.doc_type,
-                  content = EXCLUDED.content
+                  content = EXCLUDED.content,
+                  nutrients_per_100g = EXCLUDED.nutrients_per_100g
             """,
             doc.doc_id,
             doc.title,
             doc.doc_type,
             doc.content,
+            json.dumps(nutrients) if nutrients else None,
         )
         await conn.execute("DELETE FROM chunks WHERE doc_id = $1", doc.doc_id)
         await conn.executemany(

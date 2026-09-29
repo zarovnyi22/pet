@@ -83,6 +83,13 @@ async def post_json(
         raise LLMError(
             f"{provider} rate limit or quota exceeded", code="llm_rate_limited", status_code=503
         )
+    if resp.status_code == 503:
+        # Provider overload ("model is currently experiencing high demand"): transient.
+        raise LLMError(
+            f"{provider} is temporarily unavailable: {resp.text[:300]}",
+            code="llm_unavailable",
+            status_code=503,
+        )
     if resp.status_code >= 400:
         # Body only, never request headers: those carry the API key.
         raise LLMError(f"{provider} returned HTTP {resp.status_code}: {resp.text[:300]}")

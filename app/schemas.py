@@ -148,17 +148,36 @@ class NutritionBeforeAfter(BaseModel):
 
 class TraceStep(BaseModel):
     step: int
-    type: Literal["tool_call", "validation_error", "llm_error", "loop_guard"]
+    iteration: int
+    type: Literal["llm_call", "tool_call", "loop_guard", "validation_error", "correction", "error"]
     tool: str | None = None
     arguments: dict[str, Any] | None = None
+    # Tool result as the model saw it, with long strings (chunk texts) shortened for readability.
     result: Any = None
+    message: str | None = None
     duration_ms: int | None = None
 
 
-class ReformulateOut(BaseModel):
+class ReformulationAnswer(BaseModel):
+    """What the model must return as its final answer; the loop adds the trace."""
+
     substitutions: list[Substitution]
     allergens_before: list[str]
     allergens_after: list[str]
     nutrition_per_100g: NutritionBeforeAfter
     warnings: list[str] = []
+
+    @model_validator(mode="after")
+    def unsourced_means_low_confidence(self) -> "ReformulationAnswer":
+        for sub in self.substitutions:
+            if not sub.sources and sub.confidence != "low":
+                raise ValueError(
+                    f"substitution {sub.original!r} has no sources, so confidence must be 'low'"
+                )
+        if any(not sub.sources for sub in self.substitutions) and not self.warnings:
+            raise ValueError("a substitution without sources must be explained in warnings")
+        return self
+
+
+class ReformulateOut(ReformulationAnswer):
     trace: list[TraceStep] = []

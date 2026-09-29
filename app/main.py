@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -11,7 +12,7 @@ from app.db import apply_migrations, check_db, create_pool
 from app.embeddings import Embedder
 from app.errors import AppError, error_response
 from app.llm.base import get_llm_client
-from app.routers import ask, documents
+from app.routers import ask, documents, reformulate
 
 
 @asynccontextmanager
@@ -22,7 +23,10 @@ async def lifespan(app: FastAPI):
     app.state.embedder = await asyncio.to_thread(Embedder, settings.embedding_model)
     # A missing API key does not block startup: /health stays up, LLM calls return 503.
     app.state.llm = get_llm_client(settings)
+    # Shared client for agent tools (Open Food Facts); each call sets its own timeout.
+    app.state.http = httpx.AsyncClient()
     yield
+    await app.state.http.aclose()
     await app.state.llm.aclose()
     await app.state.pool.close()
 
@@ -30,6 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Reformulation Assistant", version="0.1.0", lifespan=lifespan)
 app.include_router(documents.router)
 app.include_router(ask.router)
+app.include_router(reformulate.router)
 
 
 @app.exception_handler(AppError)
