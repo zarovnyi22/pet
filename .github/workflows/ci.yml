@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: ruff + pytest
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Same image as docker-compose.yml.
+        image: pgvector/pgvector:0.8.6-pg16-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      # A *_test database: the fixtures create it and truncate it before each test.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/reformulation_test
+      # Tests never call a live LLM: no keys in CI, as in `docker compose run --rm test`.
+      GEMINI_API_KEY: ""
+      GROQ_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.30" # same as the Dockerfile
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen # Python version from .python-version
+      - name: Ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Pytest
+        run: uv run pytest -q -rs
+
+  docker:
+    name: docker build (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: reformulation-assistant:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

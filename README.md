@@ -1,5 +1,7 @@
 # Reformulation Assistant
 
+[![CI](https://github.com/zarovnyi22/pet/actions/workflows/ci.yml/badge.svg)](https://github.com/zarovnyi22/pet/actions/workflows/ci.yml)
+
 HTTP-сервіс для технолога харчового R&D: подаєш рецептуру і ціль — прибрати алерген, зменшити
 цукор або зробити продукт веганським, — отримуєш заміни інгредієнтів із джерелами (внутрішні
 спеки, звіти з пробних варок, Open Food Facts) і нутрієнти на 100 г до/після, пораховані
@@ -58,6 +60,8 @@ docker compose exec api python -m app.ingest data/corpus/   # 23 докумен�
 Далі: Swagger — http://localhost:8000/docs, здоров'я — `curl localhost:8000/health`.
 Те саме коротко: `make up`, `make ingest`, `make health`; тести — `make test` (ruff + pytest у
 контейнері, без мережі й без ключів LLM, на окремій базі `reformulation_test`), логи — `make logs`.
+CI (GitHub Actions, `.github/workflows/ci.yml`) на кожен push: Postgres + pgvector як service
+container, залежності через `uv`, ruff і pytest без ключів LLM, збірка Docker-образу без push.
 
 ## Приклади запитів
 
