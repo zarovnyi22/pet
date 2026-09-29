@@ -2,9 +2,11 @@
 
 import asyncio
 import json
+from typing import Any
 
 import asyncpg
 
+from app import allergens
 from app.embeddings import Embedder
 from app.ingest import to_pgvector
 from app.schemas import Source
@@ -26,6 +28,15 @@ async def doc_nutrients(
         doc_ids,
     )
     return {r["doc_id"]: json.loads(r["nutrients_per_100g"]) for r in rows}
+
+
+async def doc_allergens(pool: asyncpg.Pool, doc_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """{doc_id: {"allergens": [...], "vegan": bool | None}} from each document's Allergens
+    section. Parsed on read, not stored: it always matches the current content."""
+    rows = await pool.fetch(
+        "SELECT doc_id, content FROM documents WHERE doc_id = ANY($1::text[])", doc_ids
+    )
+    return {r["doc_id"]: allergens.from_spec(r["content"]) for r in rows}
 
 
 async def spec_catalog(pool: asyncpg.Pool) -> list[tuple[str, str]]:

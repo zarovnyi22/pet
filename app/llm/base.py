@@ -4,6 +4,9 @@ Callers build `Message`/`ToolSpec` objects; each provider translates them to its
 format. Switching providers is LLM_PROVIDER=gemini|groq, nothing else.
 """
 
+import asyncio
+import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -11,6 +14,8 @@ from typing import Any, Literal
 import httpx
 
 from app.errors import AppError
+
+logger = logging.getLogger("app.llm")
 
 
 class LLMError(AppError):
@@ -67,10 +72,31 @@ class LLMClient(ABC):
         pass
 
 
+# Transient provider failures (overload 503, a hung request) are retried once after a pause:
+# live Gemini returned "model is currently experiencing high demand" several times a day, and
+# a second attempt usually succeeded. 429 is not retried: a per-minute quota will not recover
+# in seconds. Inside /reformulate the retry still counts against the run's 60 s budget.
+RETRY_DELAY_SECONDS = 2.0
+
+
 async def post_json(
     http: httpx.AsyncClient, provider: str, url: str, headers: dict, body: dict
 ) -> dict:
     """POST to a provider API, mapping transport/HTTP failures to LLMError."""
+    try:
+        return await _post_once(http, provider, url, headers, body)
+    except LLMError as exc:
+        if exc.code not in ("llm_unavailable", "llm_timeout"):
+            raise
+        logger.warning("llm retry", extra={"provider": provider, "reason": exc.code})
+        await asyncio.sleep(RETRY_DELAY_SECONDS)
+        return await _post_once(http, provider, url, headers, body)
+
+
+async def _post_once(
+    http: httpx.AsyncClient, provider: str, url: str, headers: dict, body: dict
+) -> dict:
+    started = time.monotonic()
     try:
         resp = await http.post(url, headers=headers, json=body)
     except httpx.TimeoutException:
@@ -79,6 +105,14 @@ async def post_json(
         ) from None
     except httpx.HTTPError as exc:
         raise LLMError(f"{provider} request failed: {type(exc).__name__}") from None
+    logger.info(
+        "llm request",
+        extra={
+            "provider": provider,
+            "status": resp.status_code,
+            "duration_ms": int((time.monotonic() - started) * 1000),
+        },
+    )
     if resp.status_code == 429:
         raise LLMError(
             f"{provider} rate limit or quota exceeded", code="llm_rate_limited", status_code=503

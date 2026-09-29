@@ -85,3 +85,8 @@ async def save_run(
     except Exception:
         logger.exception("failed to save reformulation run")
         return None
+    finally:
+        logger.info(
+            "reformulation run",
+            extra={"status": status, "goal": request.goal, "trace_steps": len(trace)},
+        )

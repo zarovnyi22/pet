@@ -46,7 +46,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/opt/hf \
-    HF_HUB_OFFLINE=1
+    HF_HUB_OFFLINE=1 \
+    TQDM_DISABLE=1
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /opt/hf /opt/hf

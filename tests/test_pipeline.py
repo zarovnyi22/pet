@@ -45,6 +45,13 @@ TABLES = {
     "spec-oat-drink": {"Value": nutrients(46, 1.0, 1.5, 6.7, 4.0)},
     "spec-erythritol": {"Value": nutrients(0, 0, 0, 100, 0)},
 }
+# What the specs' Allergens sections say (app.allergens.from_spec on the corpus).
+FACTS = {
+    "spec-milk-2-5": {"allergens": ["milk"], "vegan": False},
+    "spec-soy-drink": {"allergens": ["soybeans"], "vegan": None},
+    "spec-oat-drink": {"allergens": ["gluten"], "vegan": None},
+    "spec-strawberry-frozen": {"allergens": [], "vegan": True},
+}
 OFF_STRAWBERRY = {
     "source": "off:5010251784173",
     "product_name": "Strawberries",
@@ -64,6 +71,9 @@ def knowledge_base(monkeypatch):
     async def tables(pool, doc_ids):
         return {d: TABLES[d] for d in doc_ids if d in TABLES}
 
+    async def allergens(pool, doc_ids):
+        return {d: FACTS.get(d, {"allergens": [], "vegan": None}) for d in doc_ids}
+
     async def search(pool, embedder, query, top_k):
         text = "Erythritol replaced 30% of sucrose; texture equal to control."
         return [Source(doc_id="trial-cookies-sugar-30", title="Trial", chunk_text=text, score=0.6)]
@@ -73,6 +83,7 @@ def knowledge_base(monkeypatch):
 
     monkeypatch.setattr(pipeline_mod, "spec_catalog", catalog)
     monkeypatch.setattr(pipeline_mod, "doc_nutrients", tables)
+    monkeypatch.setattr(pipeline_mod, "doc_allergens", allergens)
     monkeypatch.setattr(tools_mod, "doc_nutrients", tables)
     monkeypatch.setattr(tools_mod, "search", search)
     monkeypatch.setattr(tools_mod, "lookup_product", lookup)
@@ -323,3 +334,38 @@ def test_duplicate_ingredient_names_are_rejected(duplicate):
     }
     with pytest.raises(ValueError, match="duplicate ingredient names"):
         ReformulateIn.model_validate(data)
+
+
+async def test_allergens_the_model_left_out_are_added_from_the_sources():
+    llm = FakeLLM([plan(), choice(allergens_before=[], allergens_after=[])])
+    out = await run(llm)
+
+    assert (out.allergens_before, out.allergens_after) == (["milk"], ["soybeans"])
+    fixes = [s.message for s in out.trace if s.type == "correction" and "allergens" in s.message]
+    assert fixes == [
+        "allergens_before: added ['milk'] stated by the sources of ['молоко 2.5%']",
+        "allergens_after: added ['soybeans'] stated by the sources of ['соєвий напій']",
+    ]
+
+
+async def test_remove_allergen_rejects_a_replacement_that_contains_it():
+    cream = SOY | {"replacement": "вершки", "nutrients_source": "spec-milk-2-5"}
+    llm = FakeLLM(
+        [plan(), choice(substitutions=[cream, PLANT_STARTER], allergens_after=[]), choice()]
+    )
+    out = await run(llm)  # the model claimed milk-free; the source says otherwise
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert error.message.startswith("['вершки'] still contain 'milk' according to their sources")
+    assert out.substitutions[0].replacement == "соєвий напій"
+
+
+async def test_make_vegan_rejects_an_ingredient_its_source_calls_non_vegan():
+    request = YOGURT.model_copy(update={"goal": "make_vegan", "goal_params": GoalParams()})
+    only_starter = choice(substitutions=[PLANT_STARTER], allergens_after=["milk"])
+    llm = FakeLLM([plan(), only_starter, choice()])
+    out = await run(llm, request)
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert "['молоко 2.5%'] are not vegan according to their sources" in error.message
+    assert out.allergens_after == ["soybeans"]

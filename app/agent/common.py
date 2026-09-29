@@ -2,6 +2,7 @@
 app/agent/pipeline.py) and the free tool-calling loop (first attempt, app/agent/loop.py)."""
 
 import asyncio
+import logging
 import time
 from collections.abc import Awaitable
 from typing import Any
@@ -10,6 +11,8 @@ from pydantic import ValidationError
 
 from app.errors import AppError
 from app.schemas import Substitution, TraceStep
+
+logger = logging.getLogger("app.agent")
 
 TRACE_STRING_LIMIT = 300
 # Only trial reports prove a substitution works in a real product; specs and OFF only suggest.
@@ -73,3 +76,18 @@ def shorten(value: Any) -> Any:
     if isinstance(value, list):
         return [shorten(v) for v in value]
     return value
+
+
+def log_step(step: TraceStep) -> None:
+    """Every trace step also goes to the logs, tagged with the request id: the trace in the
+    response and reformulation_runs is the full record, the log is the live stream."""
+    logger.info(
+        f"agent {step.type}",
+        extra={
+            "step": step.step,
+            "stage": step.iteration,
+            "tool": step.tool,
+            "duration_ms": step.duration_ms,
+            "detail": step.message,
+        },
+    )

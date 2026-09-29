@@ -28,12 +28,13 @@ from app.agent.common import (
     bounded,
     cap_confidence,
     format_validation,
+    log_step,
     shorten,
 )
 from app.agent.prompts import CHOOSE_PROMPT, PLAN_PROMPT
 from app.agent.tools import Toolbox
 from app.llm.base import LLMClient, LLMError, Message
-from app.retrieval import doc_nutrients, spec_catalog
+from app.retrieval import doc_allergens, doc_nutrients, spec_catalog
 from app.schemas import (
     Confidence,
     EUAllergen,
@@ -191,8 +192,14 @@ class ReformulationPipeline:
         """One JSON completion, checked by `parse`; one retry with the error, as in the loop."""
         messages = [Message(role="system", content=system), Message(role="user", content=user)]
         for attempt in (1, 2):
+            started = time.monotonic()
             text = await self._bounded(self.llm.complete(messages, json_mode=True))
-            self._record("llm_call", tool=purpose, result=shorten(_parse_json_or_text(text)))
+            self._record(
+                "llm_call",
+                tool=purpose,
+                result=shorten(_parse_json_or_text(text)),
+                duration_ms=int((time.monotonic() - started) * 1000),
+            )
             try:
                 return await parse(_parse_json(text))
             except ValueError as exc:  # includes JSONDecodeError and pydantic's ValidationError
@@ -308,10 +315,12 @@ class ReformulationPipeline:
                 "ingredient that contains it"
             )
 
-        before = await self._calc(_recipe_items(recipe, originals, []))
+        before_items = _recipe_items(recipe, originals, [])
+        before = await self._calc(before_items)
         if request.goal == "reduce_sugar":
             self._solve_sugar_dose(recipe, originals, replacements, before, request)
-        after = await self._calc(_recipe_items(recipe, originals, replacements))
+        after_items = _recipe_items(recipe, originals, replacements)
+        after = await self._calc(after_items)
 
         if request.goal == "reduce_sugar":
             target = _sugar_target(before, request.goal_params.percent, margin=0)
@@ -320,7 +329,57 @@ class ReformulationPipeline:
                     f"sugar_g after is {after['per_100g']['sugar_g']}, the goal needs at most "
                     f"{target}; substitute a sugary ingredient whose sugar is known"
                 )
+        await self._check_allergens(choice, request, before_items, after_items)
         return _Computed(choice=choice, before=before, after=after)
+
+    async def _check_allergens(
+        self,
+        choice: Choice,
+        request: ReformulateIn,
+        before_items: list[dict[str, Any]],
+        after_items: list[dict[str, Any]],
+    ) -> None:
+        """Hold the model's allergen lists to what the sources say about each ingredient."""
+        sources = {i["nutrients_source"] for i in before_items + after_items} - {None}
+        docs = sorted(s for s in sources if not s.startswith("off:"))
+        facts = await self._bounded(doc_allergens(self.tools.pool, docs))
+        facts |= {s: f for s in sources if (f := self.tools.product_facts(s))}
+
+        def by_allergen(items: list[dict[str, Any]]) -> dict[str, list[str]]:
+            found: dict[str, list[str]] = {}
+            for item in items:
+                for allergen in facts.get(item["nutrients_source"], {}).get("allergens", []):
+                    found.setdefault(allergen, []).append(item["name"])
+            return found
+
+        data_before, data_after = by_allergen(before_items), by_allergen(after_items)
+        target = request.goal_params.allergen
+        if request.goal == "remove_allergen" and target in data_after:
+            raise ValueError(
+                f"{data_after[target]} still contain {target!r} according to their sources: "
+                "replace them too"
+            )
+        if request.goal == "make_vegan":
+            non_vegan = [
+                i["name"]
+                for i in after_items
+                if facts.get(i["nutrients_source"], {}).get("vegan") is False
+            ]
+            if non_vegan:
+                raise ValueError(
+                    f"{non_vegan} are not vegan according to their sources: replace them too"
+                )
+        # Allergens the sources state but the model left out are added, not retried.
+        for field, data in (("allergens_before", data_before), ("allergens_after", data_after)):
+            listed = getattr(choice, field)
+            added = [a for a in sorted(data) if a not in listed]
+            if added:
+                listed.extend(added)
+                self._record(
+                    "correction",
+                    message=f"{field}: added {added} stated by the sources of "
+                    f"{sorted({n for a in added for n in data[a]})}",
+                )
 
     def _solve_sugar_dose(
         self,
@@ -453,6 +512,7 @@ class ReformulationPipeline:
         self.trace.append(
             TraceStep(step=len(self.trace) + 1, iteration=self._stage, type=type_, **fields)
         )
+        log_step(self.trace[-1])
 
 
 def _plan_input(request: ReformulateIn, catalog: dict[str, str]) -> str:

@@ -12,6 +12,7 @@ import asyncpg
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 
+from app import allergens
 from app.embeddings import Embedder
 from app.llm.base import ToolSpec
 from app.retrieval import doc_nutrients, search
@@ -251,6 +252,7 @@ class Toolbox:
         # calc_nutrition accepts. off:<code> -> nutrients; doc_id -> its parsed nutrient table
         # (specs) and, for documents without one, the numbers in its chunk texts.
         self._product_nutrients: dict[str, dict[str, float]] = {}
+        self._product_facts: dict[str, dict[str, Any]] = {}  # off:<code> -> allergens, vegan
         self._doc_tables: dict[str, dict[str, dict[str, float]]] = {}
         self._doc_numbers: dict[str, set[float]] = {}
 
@@ -258,8 +260,18 @@ class Toolbox:
     def seen_sources(self) -> set[str]:
         return set(self._product_nutrients) | set(self._doc_tables) | set(self._doc_numbers)
 
-    def remember_product(self, source: str, nutrients: dict[str, float]) -> None:
+    def remember_product(
+        self,
+        source: str,
+        nutrients: dict[str, float],
+        allergen_tags: list[str] | None = None,
+        vegan: str = "unknown",
+    ) -> None:
         self._product_nutrients[source] = nutrients
+        self._product_facts[source] = allergens.from_off(allergen_tags or [], vegan)
+
+    def product_facts(self, source: str) -> dict[str, Any] | None:
+        return self._product_facts.get(source)
 
     def remember_table(self, doc_id: str, table: dict[str, dict[str, float]]) -> None:
         self._doc_tables[doc_id] = table
@@ -322,7 +334,12 @@ class Toolbox:
         if "error" not in result:  # retrying a timeout later in the run may succeed
             self._off_cache[key] = result
             for product in result["products"]:
-                self.remember_product(product["source"], product["nutrients_per_100g"])
+                self.remember_product(
+                    product["source"],
+                    product["nutrients_per_100g"],
+                    product.get("allergens"),
+                    product.get("vegan", "unknown"),
+                )
         return result
 
     def _calc_nutrition(self, ingredients: list[dict[str, Any]] | str) -> dict[str, Any]:

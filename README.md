@@ -1,6 +1,162 @@
 # Reformulation Assistant
 
-> Повний README (запуск, архітектура, демо) — у блоці 6. Поки тут лише ухвалені рішення.
+HTTP-сервіс для технолога харчового R&D: подаєш рецептуру і ціль — прибрати алерген, зменшити
+цукор або зробити продукт веганським, — отримуєш заміни інгредієнтів із джерелами (внутрішні
+спеки, звіти з пробних варок, Open Food Facts) і нутрієнти на 100 г до/після, пораховані
+кодом, а не моделлю. Плюс RAG-пошук по базі знань з цитатами.
+
+Pet-проєкт під вакансію Backend & AI Engineer: FastAPI, PostgreSQL + pgvector, Docker, LLM
+(Gemini, запасний Groq), RAG і агент з інструментами без фреймворків. Фронтенду немає — демо
+через Swagger UI.
+
+## Архітектура
+
+```mermaid
+flowchart LR
+    U[Технолог / Swagger UI] -->|HTTP| API[FastAPI]
+    API --> H["/health"]
+    API --> D["/documents"]
+    API --> A["/ask"]
+    API --> R["/reformulate"]
+    D --> ING[інгест: чанки по 200 токенів<br/>+ таблиця нутрієнтів]
+    ING --> EMB[all-MiniLM-L6-v2<br/>локально, CPU]
+    A --> RET[векторний пошук]
+    RET --> EMB
+    ING --> PG[(Postgres + pgvector<br/>documents · chunks<br/>reformulation_runs)]
+    RET --> PG
+    A --> LLM[LLMClient<br/>Gemini / Groq]
+    R --> P[пайплайн переформулювання]
+    P --> LLM
+    P --> T[інструменти:<br/>search_knowledge_base<br/>lookup_product<br/>calc_nutrition]
+    T --> PG
+    T --> OFF[Open Food Facts API]
+    P -->|trace кожного запуску| PG
+```
+
+`/reformulate` — фіксований пайплайн: LLM планує і обирає, код збирає дані й рахує.
+
+```mermaid
+flowchart TD
+    Q[рецептура + ціль] --> S1["1 · LLM: план<br/>англ. назви, спеки з каталогу,<br/>кандидати на заміну, запити"]
+    S1 --> S2["2 · код: таблиці нутрієнтів спек,<br/>lookup_product, search_knowledge_base"]
+    S2 --> S3["3 · LLM: вибір джерел і замін<br/>тільки з наданих кандидатів"]
+    S3 --> S4["код: рецептури до/після, calc_nutrition,<br/>доза цукру рівнянням, перевірки цілі"]
+    S4 -->|помилка: 1 повтор з текстом| S3
+    S4 --> OUT[substitutions + nutrition + trace<br/>запис у reformulation_runs]
+```
+
+## Запуск за 3 команди
+
+Потрібні лише Docker і ключ [Google AI Studio](https://aistudio.google.com/apikey) (безкоштовний).
+
+```bash
+cp .env.example .env                                        # впиши GEMINI_API_KEY=...
+docker compose up --build -d                                # db + api; перша збірка ~5 хв
+docker compose exec api python -m app.ingest data/corpus/   # 23 документи в базу знань
+```
+
+Далі: Swagger — http://localhost:8000/docs, здоров'я — `curl localhost:8000/health`.
+Те саме коротко: `make up`, `make ingest`, `make health`; тести — `make test` (ruff + pytest у
+контейнері, без мережі й без ключів LLM, на окремій базі `reformulation_test`), логи — `make logs`.
+
+## Приклади запитів
+
+```bash
+curl localhost:8000/health
+# {"status":"ok","db":"ok","llm_provider":"gemini"}
+
+curl -X POST localhost:8000/documents -H 'content-type: application/json' -d '{
+  "doc_id": "note-demo", "title": "Demo note", "doc_type": "guideline",
+  "content": "Reduce sucrose in steps of 10% and replace the mass with polydextrose."}'
+# {"doc_id":"note-demo","chunks_created":1}
+
+curl -X POST localhost:8000/ask -H 'content-type: application/json' \
+  -d '{"question": "What can replace eggs in a sponge cake and at what dosage?", "top_k": 5}'
+# {"answer": "... Aquafaba (45 g per 1 whole egg ...) [spec-aquafaba]. ... Flax gel
+#   (7 g ground flaxseed + 37 g water) [spec-whole-egg] ...",
+#  "sources": [{"doc_id": "spec-aquafaba", "title": "...", "chunk_text": "...", "score": 0.6958}, ...]}
+
+curl -X POST localhost:8000/reformulate -H 'content-type: application/json' \
+  -H 'X-Request-ID: readme-demo' -d '{
+  "product_name": "Полуничний йогурт 2.5%",
+  "ingredients": [{"name": "молоко 2.5%", "grams": 800}, {"name": "цукор", "grams": 90},
+                  {"name": "полуниця заморожена", "grams": 100}, {"name": "закваска", "grams": 10}],
+  "goal": "reduce_sugar", "goal_params": {"percent": 30}}'
+```
+
+Відповідь `/reformulate` (реальний запуск, скорочено):
+
+```json
+{
+  "substitutions": [
+    {"original": "цукор", "replacement": "Erythritol (E968)", "grams": 20.6,
+     "sources": ["spec-erythritol"], "confidence": "medium", "rationale": "..."},
+    {"original": "цукор", "replacement": "Polydextrose (E1200)", "grams": 20.6,
+     "sources": ["spec-polydextrose"], "confidence": "medium", "rationale": "..."}
+  ],
+  "allergens_before": ["milk"],
+  "allergens_after": ["milk"],
+  "nutrition_per_100g": {
+    "before": {"kcal": 82.45, "protein_g": 2.39, "fat_g": 2.04, "carbs_g": 13.71, "sugar_g": 13.26},
+    "after":  {"kcal": 68.03, "protein_g": 2.39, "fat_g": 2.04, "carbs_g": 11.73, "sugar_g": 9.14}
+  },
+  "warnings": ["Monitor total polyol levels ...", "Texture and mouthfeel may slightly change ..."],
+  "trace": ["... див. нижче"]
+}
+```
+
+Помилки завжди в одному форматі: `{"error": {"code": "...", "message": "..."}}`; помилки агента
+(`agent_timeout` 504, `agent_invalid_output` 502, `llm_unavailable` 503) додають поруч `trace`.
+
+## Як працює агент — на прикладі trace
+
+Той самий запуск `reduce_sugar`: кожен крок є в полі `trace` відповіді, у таблиці
+`reformulation_runs` і в логах (скорочено):
+
+```text
+step stage type        tool                   що сталося
+1    1     llm_call    plan                   модель: англ. назви, спеки для 4 інгредієнтів, кандидати
+2    2     tool_call   spec_tables            таблиці нутрієнтів 7 спек (цукор, молоко, еритрит, ...)
+3    2     tool_call   search_knowledge_base  "sugar reduction in yogurt bulking agents"        112 ms
+4    2     tool_call   search_knowledge_base  "erythritol polydextrose in fermented dairy ..."  112 ms
+5    3     llm_call    choose                 модель: джерела нутрієнтів + еритрит і полідекстроза
+6    3     tool_call   calc_nutrition         до:    82.45 kcal, цукор 13.26 г/100 г, rejected: []
+7    3     correction                         sugar dose computed by code: 41.1 g of 'цукор'
+                                              replaced (the model proposed 54.0 g)
+8    3     tool_call   calc_nutrition         після: 68.03 kcal, цукор 9.14 г/100 г (−31%)
+```
+
+Що тут видно: модель двічі відповіла мовою (план і вибір), а всі числа — з таблиць спек через
+код; дозу цукру модель запропонувала «на око» (54 г), код розв'язав рівняння з урахуванням
+лактози й полуниці і поставив рівно стільки, щоб цукор упав на ≥30% (41.1 г, −31%).
+
+Дебаг у продакшені — за `X-Request-ID`: той самий id є в заголовку відповіді, у кожному рядку
+JSON-логів (HTTP-запит, виклики LLM з таймінгом, кожен крок агента) і в `reformulation_runs`:
+
+```bash
+docker compose logs api --no-log-prefix | grep readme-demo
+# {"ts": "...", "level": "INFO", "logger": "app.llm", "message": "llm request",
+#  "request_id": "readme-demo", "provider": "gemini", "status": 200, "duration_ms": 7981}
+# {"ts": "...", "logger": "app.agent", "message": "agent llm_call", "request_id": "readme-demo",
+#  "step": 1, "stage": 1, "tool": "plan", ...}
+
+docker compose exec db psql -U postgres -d reformulation -c \
+  "SELECT id, status, duration_ms, jsonb_array_length(trace) FROM reformulation_runs ORDER BY id DESC LIMIT 5"
+```
+
+## Що б зробив далі
+
+1. **Сліди алергенів і перехресний контакт:** зараз код звіряє алергени, які джерело прямо
+   називає; «may contain» і лінії виробництва (є в `guideline-allergen-policy`) — наступний
+   крок для реального маркування.
+2. **Оцінка якості RAG** (`eval/questions.jsonl` + recall@5) і гібридний пошук (tsvector +
+   RRF): векторний пошук погано знаходить таблиці й числа — це показав агент.
+3. **CI** (GitHub Actions: `docker compose run --rm test` уже самодостатній) і деплой у
+   Kubernetes (kind) з liveness/readiness на `/health`.
+4. **Запасний LLM для `/reformulate`:** Groq free tier (8K токенів/хв) не вміщає навіть
+   пайплайн без платного тарифу; або менший контекст на виклик, або інший провайдер.
+5. **Моделювання процесу:** `calc_nutrition` рахує сировинну суміш; для йогурту варто
+   врахувати ферментацію лактози, для випічки — втрату води.
 
 ## Рішення і компроміси
 
@@ -35,13 +191,17 @@
   невалідній відповіді) — у межах 6 ітерацій зі спеки; загальний ліміт часу 60 с
   (`AGENT_TIMEOUT_SECONDS`). `AGENT_MAX_ITERATIONS` тепер діє лише на цикл у `loop.py`.
 - **Trace.** Той самий формат, що в циклу: `iteration` — номер етапу пайплайна (1 план,
-  2 збір даних, 3 вибір, 4 розрахунок); у кроків `llm_call` поле `tool` — призначення виклику
-  (`plan` / `choose`), `result` — розібрана відповідь моделі; `correction` — що код виправив
-  сам (доза цукру, `confidence`, неперевірені джерела) замість повтору.
-- **Обмеження: алергени.** Код перевіряє, що цільового алергену немає в `allergens_after`,
-  але сам список складає модель — з даних спек і Open Food Facts код його не виводить. Для
-  `make_vegan` кодової перевірки веганського статусу немає. Наступний крок — брати алергени
-  з `allergens` товарів OFF і з таблиць алергенів спек.
+  2 збір даних, 3 вибір разом із розрахунком — кожен вибір одразу перевіряється
+  `calc_nutrition`, тож повтор рахує заново, 4 фінальні правки); у кроків `llm_call` поле
+  `tool` — призначення виклику (`plan` / `choose`), `result` — розібрана відповідь моделі,
+  `duration_ms` — час відповіді LLM; `correction` — що код виправив сам (доза цукру,
+  `confidence`, неперевірені джерела) замість повтору.
+- **Алергени звіряються з даними.** Код бере алергени й веганський статус кожного інгредієнта
+  з його джерела — секції «Allergens» спеки (виділені назви: `Contains **milk**`) або тегів
+  Open Food Facts — і: додає алергени, які модель пропустила (`correction`); для
+  `remove_allergen` відхиляє вибір, якщо джерело інгредієнта «після» ще містить цей алерген;
+  для `make_vegan` — якщо джерело позначає інгредієнт як не веганський. Межа: інгредієнт без
+  джерела код перевірити не може; «may contain» (сліди) не враховуються.
 
 ### Чанки по 200 токенів, а не 400
 

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = 40
     agent_max_iterations: int = 6
     agent_timeout_seconds: int = 60
+    log_level: str = "INFO"
 
     @model_validator(mode="after")
     def check_chunking(self) -> "Settings":

@@ -15,6 +15,7 @@ from app.agent.common import (
     bounded,
     cap_confidence,
     format_validation,
+    log_step,
     shorten,
 )
 from app.agent.prompts import FORCE_FINAL, RETRY_INVALID, system_prompt
@@ -210,6 +211,7 @@ class AgentLoop:
         self.trace.append(
             TraceStep(step=len(self.trace) + 1, iteration=self._iteration, type=type_, **fields)
         )
+        log_step(self.trace[-1])
 
 
 def tool_content(result: dict[str, Any]) -> str:
