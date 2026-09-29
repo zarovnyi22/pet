@@ -9,7 +9,9 @@ from starlette.exceptions import HTTPException
 from app.config import get_settings
 from app.db import apply_migrations, check_db, create_pool
 from app.embeddings import Embedder
-from app.routers import documents
+from app.errors import AppError, error_response
+from app.llm.base import get_llm_client
+from app.routers import ask, documents
 
 
 @asynccontextmanager
@@ -18,18 +20,21 @@ async def lifespan(app: FastAPI):
     app.state.pool = await create_pool(settings.database_url)
     await apply_migrations(app.state.pool)
     app.state.embedder = await asyncio.to_thread(Embedder, settings.embedding_model)
+    # A missing API key does not block startup: /health stays up, LLM calls return 503.
+    app.state.llm = get_llm_client(settings)
     yield
+    await app.state.llm.aclose()
     await app.state.pool.close()
 
 
 app = FastAPI(title="Reformulation Assistant", version="0.1.0", lifespan=lifespan)
 app.include_router(documents.router)
+app.include_router(ask.router)
 
 
-def error_response(status_code: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse(
-        status_code=status_code, content={"error": {"code": code, "message": message}}
-    )
+@app.exception_handler(AppError)
+async def app_error(request: Request, exc: AppError) -> JSONResponse:
+    return error_response(exc.status_code, exc.code, exc.message)
 
 
 @app.exception_handler(RequestValidationError)

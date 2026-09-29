@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     llm_provider: Literal["gemini", "groq"] = "gemini"
     gemini_api_key: str = ""
     groq_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
+    groq_model: str = "llama-3.3-70b-versatile"
+    llm_timeout_seconds: float = 30.0
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     chunk_size_tokens: int = 200
     chunk_overlap_tokens: int = 40

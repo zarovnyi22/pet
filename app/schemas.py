@@ -22,3 +22,27 @@ class DocumentIn(BaseModel):
 class DocumentOut(BaseModel):
     doc_id: str
     chunks_created: int
+
+
+class AskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=5, ge=1, le=20)
+
+    @field_validator("question")
+    @classmethod
+    def question_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("question must not be empty")
+        return value
+
+
+class Source(BaseModel):
+    doc_id: str
+    title: str
+    chunk_text: str
+    score: float
+
+
+class AskOut(BaseModel):
+    answer: str
+    sources: list[Source]
