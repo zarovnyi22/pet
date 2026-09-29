@@ -17,7 +17,11 @@ services:
       retries: 15
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        # Baked into the image at build time; keep in sync with the runtime EMBEDDING_MODEL.
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
     env_file: .env
     environment:
       # .env points at localhost for host-side runs; inside compose the DB host is `db`.

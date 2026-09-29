@@ -18,15 +18,24 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
+# Embedding model is downloaded at build time, so the container starts without network.
+# Must match EMBEDDING_MODEL at runtime (compose passes the same value as a build arg).
+ARG EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+ENV HF_HOME=/opt/hf
+RUN /app/.venv/bin/python -c "import sys; from sentence_transformers import SentenceTransformer as M; M(sys.argv[1], device='cpu')" "$EMBEDDING_MODEL"
+
 # --- Stage 2: runtime — only the venv and the code, no uv, no build cache ---
 FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HOME=/opt/hf \
+    HF_HUB_OFFLINE=1
 
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /opt/hf /opt/hf
 COPY migrations ./migrations
 COPY app ./app
 
