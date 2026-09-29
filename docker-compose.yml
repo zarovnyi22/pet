@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks: [default, offline]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d reformulation"]
       interval: 2s
@@ -38,7 +39,8 @@ services:
 
   # ruff + pytest: `docker compose run --rm test` (append a command to override, e.g.
   # `docker compose run --rm test pytest -q tests/test_calc_nutrition.py`).
-  # Behind a profile, so `docker compose up` never starts it. No env_file: tests need no keys.
+  # Behind a profile, so `docker compose up` never starts it. Runs offline and keyless: only the
+  # `offline` network (internal: db reachable, internet not), LLM keys forced empty.
   test:
     profiles: ["test"]
     build:
@@ -47,13 +49,22 @@ services:
       args:
         EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
     environment:
-      # Env vars win over the mounted .env, which points at localhost.
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/reformulation
+      # Env vars win over the mounted .env (which points at localhost and holds real keys).
+      # A separate *_test database: the fixtures create it and truncate it before each test.
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/reformulation_test
+      GEMINI_API_KEY: ""
+      GROQ_API_KEY: ""
+      TEST_NETWORK_ISOLATED: "1"
+    networks: [offline]
     volumes:
       - .:/src
     depends_on:
       db:
         condition: service_healthy
+
+networks:
+  offline:
+    internal: true
 
 volumes:
   pgdata:

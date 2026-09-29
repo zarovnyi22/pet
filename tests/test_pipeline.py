@@ -11,6 +11,9 @@ from app.agent.tools import NutritionIngredient, Toolbox, calc_nutrition
 from app.llm.fake import FakeLLM
 from app.schemas import GoalParams, ReformulateIn, Source
 
+# Every test here runs against the fixture knowledge base below; other modules opt in explicitly.
+pytestmark = pytest.mark.usefixtures("knowledge_base")
+
 YOGURT = ReformulateIn(
     product_name="Полуничний йогурт 2.5%",
     ingredients=[
@@ -51,7 +54,7 @@ OFF_STRAWBERRY = {
 }
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def knowledge_base(monkeypatch):
     """The DB and Open Food Facts, replaced by the corpus values above."""
 
