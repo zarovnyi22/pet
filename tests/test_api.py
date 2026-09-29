@@ -1,7 +1,9 @@
 import json
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
+from app.agent.pipeline import ReformulationPipeline
 from app.config import get_settings
 from app.llm.fake import FakeLLM
 from app.main import app
@@ -177,6 +179,24 @@ async def test_reformulate_invalid_answer_is_502_with_trace_and_logged(db_client
     run = await fetch_run(resp.headers["X-Run-Id"])
     assert (run["status"], run["response"]) == ("agent_invalid_output", None)
     assert run["trace"] == body["trace"]
+
+
+async def test_unexpected_error_keeps_the_error_format_and_logs_the_run(db_client, monkeypatch):
+    async def crash(self, request):
+        self._record("error", message="about to crash")
+        raise RuntimeError("bug with internal details")
+
+    monkeypatch.setattr(ReformulationPipeline, "run", crash)
+    # What a real client sees: the server answers instead of re-raising into the test.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/reformulate", json=YOGURT.model_dump())
+
+    assert resp.status_code == 500
+    assert resp.json() == {"error": {"code": "internal_error", "message": "Internal server error"}}
+    run = await app.state.pool.fetchrow("SELECT status, trace FROM reformulation_runs")
+    assert run["status"] == "internal_error"  # the trace so far is kept for debugging
+    assert json.loads(run["trace"])[0]["message"] == "about to crash"
 
 
 async def test_reformulate_rejects_params_that_do_not_match_the_goal():

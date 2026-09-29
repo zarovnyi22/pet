@@ -29,8 +29,15 @@ jobs:
       # Tests never call a live LLM: no keys in CI, as in `docker compose run --rm test`.
       GEMINI_API_KEY: ""
       GROQ_API_KEY: ""
+      # Use the interpreter set up above, never a download (as UV_PYTHON_DOWNLOADS=0 in Docker).
+      UV_PYTHON_DOWNLOADS: never
     steps:
       - uses: actions/checkout@v4
+      # The exact interpreter from .python-version (3.12.14, as in the Docker image): uv 0.9.30
+      # cannot download that patch release itself, and the runner's system Python is older.
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.30" # same as the Dockerfile

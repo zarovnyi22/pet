@@ -1,4 +1,4 @@
-"""Proof, not a promise, that the suite needs no LLM keys and no internet (plan, block 5)."""
+"""Proof, not a promise, that the suite needs no LLM keys and no internet."""
 
 import os
 import socket

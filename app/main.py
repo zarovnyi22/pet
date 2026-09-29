@@ -89,6 +89,13 @@ async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
     return error_response(exc.status_code, "http_error", str(exc.detail))
 
 
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    # A bug, not a domain error: same error format, no internals leaked to the client.
+    # The traceback is already logged (with the request id) by the request middleware.
+    return error_response(500, "internal_error", "Internal server error")
+
+
 @app.get("/health")
 async def health(request: Request) -> JSONResponse:
     db = await check_db(request.app.state.pool)
