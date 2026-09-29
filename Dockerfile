@@ -1,5 +1,13 @@
+# Pinned versions: both stages use the SAME python image, so the venv built in stage 1
+# runs on exactly the same interpreter in stage 2. Bump versions here deliberately.
+ARG PYTHON_IMAGE=python:3.12.14-slim-bookworm
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.9.30
+
+FROM ${UV_IMAGE} AS uv
+
 # --- Stage 1: uv resolves and installs dependencies into /app/.venv ---
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ${PYTHON_IMAGE} AS builder
+COPY --from=uv /uv /usr/local/bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -11,7 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
 # --- Stage 2: runtime — only the venv and the code, no uv, no build cache ---
-FROM python:3.12-slim-bookworm
+FROM ${PYTHON_IMAGE}
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \

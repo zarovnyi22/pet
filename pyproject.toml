@@ -3,21 +3,22 @@ name = "reformulation-assistant"
 version = "0.1.0"
 description = "RAG + tool-calling agent for food product reformulation"
 requires-python = "==3.12.*"
+# Direct deps pinned exactly (== what uv.lock resolved); transitive deps are pinned by uv.lock.
 dependencies = [
-    "asyncpg>=0.30",
-    "fastapi>=0.115",
-    "pydantic-settings>=2.6",
-    "sentence-transformers>=3.3",
-    "torch>=2.5",
-    "uvicorn[standard]>=0.32",
+    "asyncpg==0.31.0",
+    "fastapi==0.141.1",
+    "pydantic-settings==2.15.0",
+    "sentence-transformers==6.1.0",
+    "torch==2.14.0",
+    "uvicorn[standard]==0.54.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28",
-    "pytest>=8.3",
-    "pytest-asyncio>=0.24",
-    "ruff>=0.8",
+    "httpx==0.28.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.9",
 ]
 
 # CPU-only torch: the CUDA build is ~5 GB of wheels we never use (embeddings run on CPU).

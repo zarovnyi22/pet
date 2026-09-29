@@ -1,6 +1,7 @@
 services:
   db:
-    image: pgvector/pgvector:pg16
+    # Pinned: pgvector 0.8.6 on Postgres 16 (Debian bookworm).
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
