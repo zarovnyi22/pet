@@ -24,6 +24,20 @@ ARG EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 ENV HF_HOME=/opt/hf
 RUN /app/.venv/bin/python -c "import sys; from sentence_transformers import SentenceTransformer as M; M(sys.argv[1], device='cpu')" "$EMBEDDING_MODEL"
 
+# --- Dev stage: runtime venv + dev group (pytest, ruff) for `docker compose run --rm test` ---
+# Only built on demand (target: dev); the default build target is still the runtime stage below.
+# The code is not copied: compose mounts the repo at /src, so tests see the working tree.
+FROM builder AS dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+WORKDIR /src
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    RUFF_NO_CACHE=true \
+    HF_HUB_OFFLINE=1
+CMD ["sh", "-c", "ruff check . && ruff format --check . && pytest -q -p no:cacheprovider"]
+
 # --- Stage 2: runtime — only the venv and the code, no uv, no build cache ---
 FROM ${PYTHON_IMAGE}
 

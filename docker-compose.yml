@@ -36,5 +36,24 @@ services:
       db:
         condition: service_healthy
 
+  # ruff + pytest: `docker compose run --rm test` (append a command to override, e.g.
+  # `docker compose run --rm test pytest -q tests/test_calc_nutrition.py`).
+  # Behind a profile, so `docker compose up` never starts it. No env_file: tests need no keys.
+  test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: dev
+      args:
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+    environment:
+      # Env vars win over the mounted .env, which points at localhost.
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/reformulation
+    volumes:
+      - .:/src
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
