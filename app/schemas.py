@@ -109,6 +109,20 @@ class ReformulateIn(BaseModel):
     goal: Goal
     goal_params: GoalParams = Field(default_factory=GoalParams)
 
+    @field_validator("ingredients")
+    @classmethod
+    def names_are_unique(cls, ingredients: list[RecipeIngredient]) -> list[RecipeIngredient]:
+        # The recipe is handled by name: duplicates would silently merge and lose their mass.
+        seen, duplicates = set(), []
+        for ingredient in ingredients:
+            key = ingredient.name.strip().casefold()
+            if key in seen:
+                duplicates.append(ingredient.name)
+            seen.add(key)
+        if duplicates:
+            raise ValueError(f"duplicate ingredient names {duplicates}: merge them into one line")
+        return ingredients
+
     @model_validator(mode="after")
     def params_match_goal(self) -> "ReformulateIn":
         p = self.goal_params

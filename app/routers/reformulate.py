@@ -7,7 +7,7 @@ import asyncpg
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
-from app.agent.loop import AgentError
+from app.agent.common import AgentError
 from app.agent.pipeline import ReformulationPipeline
 from app.agent.tools import Toolbox
 from app.config import get_settings

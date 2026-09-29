@@ -3,7 +3,8 @@ import json
 
 import pytest
 
-from app.agent.loop import AgentError, AgentLoop
+from app.agent.common import AgentError
+from app.agent.loop import AgentLoop
 from app.agent.prompts import FORCE_FINAL
 from app.agent.tools import NutritionIngredient, Toolbox, calc_nutrition
 from app.llm.base import LLMError, LLMResponse, ToolCall

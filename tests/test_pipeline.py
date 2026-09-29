@@ -5,7 +5,7 @@ import pytest
 
 from app.agent import pipeline as pipeline_mod
 from app.agent import tools as tools_mod
-from app.agent.loop import AgentError
+from app.agent.common import AgentError
 from app.agent.pipeline import ReformulationPipeline
 from app.agent.tools import NutritionIngredient, Toolbox, calc_nutrition
 from app.llm.fake import FakeLLM
@@ -310,3 +310,13 @@ async def test_timeout_is_504_with_trace():
         await run(SlowLLM(), timeout=0.05)
     assert (err.value.status_code, err.value.code) == (504, "agent_timeout")
     assert err.value.trace[-1].type == "error"
+
+
+@pytest.mark.parametrize("duplicate", ["цукор", " Цукор "])
+def test_duplicate_ingredient_names_are_rejected(duplicate):
+    # The pipeline handles the recipe by name: a duplicate would merge and lose 45 g.
+    data = YOGURT.model_dump() | {
+        "ingredients": [*YOGURT.model_dump()["ingredients"], {"name": duplicate, "grams": 45}]
+    }
+    with pytest.raises(ValueError, match="duplicate ingredient names"):
+        ReformulateIn.model_validate(data)

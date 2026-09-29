@@ -22,7 +22,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, Field, ValidationError
 
-from app.agent.loop import (
+from app.agent.common import (
     AgentError,
     OutOfTime,
     bounded,

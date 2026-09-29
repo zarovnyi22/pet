@@ -9,70 +9,31 @@ from typing import Any, Protocol
 
 from pydantic import ValidationError
 
+from app.agent.common import (
+    AgentError,
+    OutOfTime,
+    bounded,
+    cap_confidence,
+    format_validation,
+    shorten,
+)
 from app.agent.prompts import FORCE_FINAL, RETRY_INVALID, system_prompt
 from app.agent.tools import TOOL_SPECS
-from app.errors import AppError
 from app.llm.base import LLMClient, LLMError, Message, ToolCall
 from app.schemas import (
     NutritionPer100g,
     ReformulateIn,
     ReformulateOut,
     ReformulationAnswer,
-    Substitution,
     TraceStep,
 )
 
-TRACE_STRING_LIMIT = 300
-# Only trial reports prove a substitution works in a real product; specs and OFF only suggest.
-HIGH_CONFIDENCE_PREFIX = "trial-"
 # Rounding slack when matching the answer's nutrition against calc_nutrition results.
 NUTRITION_TOLERANCE = 0.05
 
 
 class ToolRunner(Protocol):
     async def execute(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]: ...
-
-
-class AgentError(AppError):
-    """A failed run. Carries the trace gathered so far, for the response and the run log."""
-
-    def __init__(self, status_code: int, code: str, message: str, trace: list[TraceStep]) -> None:
-        super().__init__(status_code, code, message)
-        self.trace = trace
-
-
-class OutOfTime(Exception):
-    pass
-
-
-async def bounded[T](awaitable: Awaitable[T], deadline: float) -> T:
-    """Await within the run's wall-clock budget (time.monotonic() deadline)."""
-    remaining = deadline - time.monotonic()
-    if remaining <= 0:
-        if asyncio.iscoroutine(awaitable):
-            awaitable.close()
-        elif isinstance(awaitable, asyncio.Future):
-            awaitable.cancel()  # a gather() whose tool tasks are already scheduled
-        raise OutOfTime
-    try:
-        return await asyncio.wait_for(awaitable, remaining)
-    except TimeoutError:
-        raise OutOfTime from None
-
-
-def cap_confidence(substitutions: list[Substitution]) -> list[str]:
-    """Lower "high" to "medium" unless a trial report backs it; returns what was changed."""
-    changed = []
-    for sub in substitutions:
-        if sub.confidence == "high" and not any(
-            s.startswith(HIGH_CONFIDENCE_PREFIX) for s in sub.sources
-        ):
-            sub.confidence = "medium"
-            changed.append(
-                f"confidence of {sub.original!r} -> {sub.replacement!r} lowered from "
-                f"high to medium: no trial report among sources {sub.sources}"
-            )
-    return changed
 
 
 class AgentLoop:
@@ -265,20 +226,3 @@ def _close(a: NutritionPer100g, b: NutritionPer100g) -> bool:
         abs(getattr(a, f) - getattr(b, f)) <= NUTRITION_TOLERANCE
         for f in NutritionPer100g.model_fields
     )
-
-
-def format_validation(exc: ValidationError) -> str:
-    return "; ".join(
-        f"{'.'.join(str(p) for p in e['loc']) or 'answer'}: {e['msg']}"
-        for e in exc.errors(include_url=False)
-    )
-
-
-def shorten(value: Any) -> Any:
-    if isinstance(value, str) and len(value) > TRACE_STRING_LIMIT:
-        return value[:TRACE_STRING_LIMIT] + "…"
-    if isinstance(value, dict):
-        return {k: shorten(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [shorten(v) for v in value]
-    return value

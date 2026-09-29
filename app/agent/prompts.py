@@ -111,7 +111,10 @@ from the CANDIDATE SOURCES given (knowledge-base documents and Open Food Facts p
 Return only a JSON object matching the RESPONSE SCHEMA.
 
 - original_nutrients: for every recipe ingredient, the source whose nutrients describe it \
-(nutrients_source + nutrients_column when the source lists several columns), or null.
+(nutrients_source + nutrients_column when the source lists several columns), or null. The \
+column must describe the ingredient as it is in the ORIGINAL recipe, not its replacement: \
+e.g. a 10 g starter in a dairy yogurt is the bulk (fermented milk) starter, never the \
+plant-based culture.
 - substitutions: replace only what the goal requires. A substitution replaces `grams` of \
 the original with the same grams of the replacement; to replace an ingredient fully, use \
 its full grams. nutrients_source is the source of the replacement's nutrients.
@@ -122,5 +125,6 @@ confidence: "high" only with a trial report, "medium" with a spec or product, "l
 source (then explain in warnings).
 - allergens_before / allergens_after: EU allergen names from the schema. A replacement \
 may introduce a new allergen: list it and warn.
-- warnings: risks for texture, fermentation, labelling. Do not state nutrition numbers: \
-code computes and reports them."""
+- warnings: risks for texture, fermentation, labelling. Make no nutrition claims at all, \
+neither numbers nor comparisons such as "lower protein": code computes the before/after \
+values and adds the nutrition warnings itself."""
