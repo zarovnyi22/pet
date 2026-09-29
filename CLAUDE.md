@@ -26,7 +26,7 @@ RAG-пошук (/ask), агент переформулювання (/reformulate
 | Доступ до бази | asyncpg напряму, ручний SQL (без SQLAlchemy/Alembic — один день) |
 | Ембединги | sentence-transformers, `all-MiniLM-L6-v2`, 384 виміри, локально на CPU |
 | LLM, основний | Gemini API (Google AI Studio), сімейство Flash, `LLM_PROVIDER=gemini` |
-| LLM, запасний | Groq free tier, Llama-моделі, `LLM_PROVIDER=groq` |
+| LLM, запасний | Groq free tier, `openai/gpt-oss-120b` (Llama на Groq більше недоступна), `LLM_PROVIDER=groq` |
 | Дані про продукти | Open Food Facts API, без ключа |
 | Контейнери | Docker, Docker Compose (обов'язково) |
 | Тести | pytest, pytest-asyncio, httpx |

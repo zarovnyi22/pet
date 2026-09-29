@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     groq_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash-lite"
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
     llm_timeout_seconds: float = 30.0
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     chunk_size_tokens: int = 200
