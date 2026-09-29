@@ -27,7 +27,9 @@
 
 ```
 Прочитай CLAUDE.md. Реалізуй:
-1. app/chunking.py — чиста функція різання тексту на чанки по 400 токенів з перекриттям 50
+1. app/chunking.py — чиста функція різання тексту на чанки по 200 токенів з перекриттям 40
+   (токенізатором all-MiniLM-L6-v2: модель обрізає вхід на 256; значення — у config.py,
+   CHUNK_SIZE_TOKENS / CHUNK_OVERLAP_TOKENS)
 2. app/embeddings.py — обгортка над sentence-transformers (all-MiniLM-L6-v2, 384 виміри)
 3. POST /documents — приймає {doc_id, title, doc_type, content}, ріже на чанки, рахує
    ембединги, зберігає в БД. Повторний інгест того самого doc_id замінює старі чанки, не

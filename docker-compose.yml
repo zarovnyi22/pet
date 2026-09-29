@@ -22,6 +22,10 @@ services:
     environment:
       # .env points at localhost for host-side runs; inside compose the DB host is `db`.
       DATABASE_URL: postgresql://postgres:postgres@db:5432/reformulation
+    volumes:
+      # Corpus for the ingest CLI (docker compose exec api python -m app.ingest data/corpus/).
+      # Mounted, not baked in: editing a document doesn't need an image rebuild.
+      - ./data:/app/data:ro
     ports:
       - "8000:8000"
     depends_on:

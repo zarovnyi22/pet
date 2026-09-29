@@ -43,3 +43,5 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# The project is not installed (package = false), so tests import `app` from the repo root.
+pythonpath = ["."]
