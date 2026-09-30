@@ -46,6 +46,7 @@ None of the 14 EU allergens.
 | Carbohydrates | 0 g |
 | of which sugars | 0 g |
 | Relative sweetness (sucrose = 1) | 250 (range 200–300) |
+| Max dosage (% of product) | 0.05 (upper sensory limit) |
 
 At the doses used, the nutrient contribution is zero.
 

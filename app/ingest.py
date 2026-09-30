@@ -32,6 +32,9 @@ NUTRIENT_ROWS = {
     # Not a nutrient: calc_nutrition only weighs the five above. The pipeline uses it for the
     # sucrose equivalent of sugars and sweeteners.
     "relative sweetness (sucrose = 1)": "sweetness",
+    # Also not a nutrient: the most of the product this ingredient may be, checked by the
+    # pipeline for every replacement. A cell without a number ("—") means no limit.
+    "max dosage (% of product)": "max_dosage_pct",
 }
 NUMBER = re.compile(r"\d+(?:\.\d+)?")
 

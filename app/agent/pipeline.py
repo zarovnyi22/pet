@@ -16,6 +16,7 @@ Two LLM calls (plus at most one retry each), and the model never supplies a numb
 import asyncio
 import json
 import math
+import re
 import time
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, NamedTuple
@@ -56,6 +57,12 @@ SWEETNESS_DROP_WARNING = 0.15
 # steviol glycosides ~ 250-300 g sucrose; bitter above 0.05% of product weight.
 STEVIA_SUCROSE_EQUIVALENT = (250, 300)
 STEVIA_MAX_SHARE = 0.0005
+# Relative sweetness above this = intense sweetener (stevia 250): dosed by code in hundredths
+# of a gram to close the sweetness gap, never scaled with the bulking agents.
+INTENSE_SWEETNESS = 10
+# A dose or a percentage in the model's own warnings: code computes every number, and the
+# model's were wrong in live runs ("erythritol 1.08% (10.8 g)" for 20.4 g = 2.04%).
+MODEL_NUMBER = re.compile(r"\d+(?:[.,]\d+)?\s*(?:%|[km]?g\b)")
 EXCERPT_CHARS = 400
 
 # Common non-canonical names models use for the 14 EU allergens.
@@ -310,6 +317,7 @@ class ReformulationPipeline:
 
     async def _compute(self, data: Any, request: ReformulateIn) -> _Computed:
         choice = Choice.model_validate(data)
+        self._drop_model_numbers(choice)
         recipe = {i.name: i.grams for i in request.ingredients}
 
         originals: dict[str, Original] = {}
@@ -346,7 +354,10 @@ class ReformulationPipeline:
         before_items = _recipe_items(recipe, originals, [])
         before = await self._calc(before_items)
         if request.goal == "reduce_sugar":
-            self._solve_sugar_dose(recipe, originals, replacements, before, request)
+            self._solve_sugar_dose(recipe, originals, replacements, before, request, choice)
+            replacements = [(s, n) for s, n in replacements if s.grams > 0]
+            choice.substitutions = [s for s, _ in replacements]
+        self._check_dosage(recipe, replacements)
         after_items = _recipe_items(recipe, originals, replacements)
         after = await self._calc(after_items)
 
@@ -397,7 +408,9 @@ class ReformulationPipeline:
             found: dict[str, list[str]] = {}
             for item in items:
                 for allergen in (facts_of(item) or {}).get("allergens", []):
-                    found.setdefault(allergen, []).append(item["name"])
+                    names = found.setdefault(allergen, [])
+                    if item["name"] not in names:  # one ingredient can be in two substitutions
+                        names.append(item["name"])
             return found
 
         data_before, data_after = by_allergen(before_items), by_allergen(after_items)
@@ -408,9 +421,11 @@ class ReformulationPipeline:
                 "replace them too"
             )
         if request.goal == "make_vegan":
-            non_vegan = [
-                i["name"] for i in after_items if (facts_of(i) or {}).get("vegan") is False
-            ]
+            non_vegan = list(
+                dict.fromkeys(
+                    i["name"] for i in after_items if (facts_of(i) or {}).get("vegan") is False
+                )
+            )
             if non_vegan:
                 raise ValueError(
                     f"{non_vegan} are not vegan according to their sources: replace them too"
@@ -473,7 +488,8 @@ class ReformulationPipeline:
         before_items: list[dict[str, Any]],
         after_items: list[dict[str, Any]],
     ) -> None:
-        """Warn when replacing a sweet ingredient loses sweetness; stevia is advised, not added.
+        """Warn when replacing a sweet ingredient changes sweetness by more than 15% either
+        way; for a drop, stevia is advised, not added.
 
         Sucrose equivalent = sum of grams x relative sweetness over ingredients whose source
         states it (specs of sugar and sweeteners). Checked only when a substituted original has
@@ -495,6 +511,11 @@ class ReformulationPipeline:
             return
         before, after = _sucrose_equivalent(before_items), _sucrose_equivalent(after_items)
         drop = (before - after) / before if before else 0
+        if -drop > SWEETNESS_DROP_WARNING:
+            choice.warnings.append(
+                f"Sweetness rises by {-drop:.0%}: sucrose equivalent {before:.1f} g -> "
+                f"{after:.1f} g per batch; the product will taste sweeter than the original."
+            )
         if drop <= SWEETNESS_DROP_WARNING:
             return
         gap = before - after
@@ -520,6 +541,7 @@ class ReformulationPipeline:
         replacements: list[tuple[ChosenSubstitution, dict[str, float]]],
         before: dict[str, Any],
         request: ReformulateIn,
+        choice: Choice,
     ) -> None:
         """Set the grams of the added-sugar replacement so sugar per 100 g meets the goal.
 
@@ -540,10 +562,18 @@ class ReformulationPipeline:
         name = max(sugary, key=lambda n: originals[n].nutrients.get("sugar_g", 0))
         s0 = originals[name].nutrients.get("sugar_g", 0)
         blend = [(s, n) for s, n in replacements if s.original == name]
-        if any("sugar_g" not in n for _, n in blend):
+        intense = [(s, n) for s, n in blend if n.get("sweetness", 0) > INTENSE_SWEETNESS]
+        bulk = [(s, n) for s, n in blend if n.get("sweetness", 0) <= INTENSE_SWEETNESS]
+        if not bulk:
+            raise ValueError(
+                f"reduce_sugar: {[s.replacement for s, _ in intense]} add sweetness but no bulk; "
+                f"replace {name!r} with a bulking agent (e.g. spec-erythritol, spec-polydextrose) "
+                "and keep the intense sweetener as a second substitution"
+            )
+        if any("sugar_g" not in n for _, n in bulk):
             raise ValueError(f"reduce_sugar: a replacement for {name!r} has no sugar value")
-        proposed = sum(s.grams for s, _ in blend)
-        s1 = sum(s.grams / proposed * n["sugar_g"] for s, n in blend)
+        proposed = sum(s.grams for s, _ in bulk)
+        s1 = sum(s.grams / proposed * n["sugar_g"] for s, n in bulk)
         if s1 >= s0:
             raise ValueError(f"reduce_sugar: the replacements for {name!r} are not less sugary")
 
@@ -561,13 +591,102 @@ class ReformulationPipeline:
                 f"reduce_sugar: even replacing all {recipe[name]} g of {name!r} does not reach "
                 f"the goal; also substitute another sugary ingredient or a less sugary replacement"
             )
-        for sub, _ in blend:
+        for sub, _ in bulk:
             sub.grams = round(dose * sub.grams / proposed, 1)
         self._record(
             "correction",
             message=f"sugar dose computed by code: {dose} g of {name!r} replaced "
             f"(the model proposed {proposed} g)",
         )
+        if intense:
+            self._dose_intense_sweeteners(name, recipe, originals, replacements, intense, choice)
+
+    def _dose_intense_sweeteners(
+        self,
+        name: str,
+        recipe: dict[str, float],
+        originals: dict[str, Original],
+        replacements: list[tuple[ChosenSubstitution, dict[str, float]]],
+        intense: list[tuple[ChosenSubstitution, dict[str, float]]],
+        choice: Choice,
+    ) -> None:
+        """Dose the intense sweeteners the model chose so the sucrose equivalent returns to its
+        level before, in 0.01 g steps and within max_dosage_pct. Scaled with the bulking agents,
+        0.05 g of stevia became 0.1 g after rounding; left to the model, 0.4 g (+80%)."""
+        s_sugar = originals[name].nutrients.get("sweetness")
+        others = [(s, n) for s, n in replacements if all(s is not i for i, _ in intense)]
+        bulk = [n for s, n in others if s.original == name]
+        if s_sugar is None or any("sweetness" not in n for n in bulk):
+            choice.warnings.append(
+                f"Dose of {', '.join(s.replacement for s, _ in intense)} not computed: the "
+                f"sweetness of {name!r} or of its bulking agents is unknown; set it by a "
+                "sensory test."
+            )
+            return
+        without = _recipe_items(recipe, originals, others)
+        # Grams of intense sweetener G, split as the model proposed: each gram replaces a gram
+        # of sugar, so it adds (sweetness - s_sugar) of sucrose equivalent.
+        gap = _sucrose_equivalent(_recipe_items(recipe, originals, [])) - _sucrose_equivalent(
+            [i for i in without if "sweetness" in i["nutrients_per_100g"]]
+        )
+        proposed = sum(s.grams for s, _ in intense)
+        per_gram = sum(s.grams / proposed * (n["sweetness"] - s_sugar) for s, n in intense)
+        total_mass = sum(recipe.values())
+        for sub, n in intense:
+            model_grams = sub.grams
+            grams = max(0.0, gap / per_gram * sub.grams / proposed)
+            sub.grams = round(grams, 2)
+            limit = n.get("max_dosage_pct")
+            if limit is not None and sub.grams > limit * total_mass / 100:
+                sub.grams = math.floor(limit * total_mass) / 100
+                closed = sub.grams * (n["sweetness"] - s_sugar)
+                choice.warnings.append(
+                    f"{sub.replacement} capped at the {limit:g}% limit of {sub.nutrients_source} "
+                    f"({sub.grams:.2f} g): it closes {closed:.1f} of the {gap:.1f} g "
+                    "sucrose-equivalent gap."
+                )
+            self._record(
+                "correction",
+                message=f"stevia dose computed by code: {sub.grams} g of {sub.replacement!r} "
+                f"for a {gap:.1f} g sucrose-equivalent gap (the model proposed {model_grams} g)",
+            )
+
+    def _check_dosage(
+        self,
+        recipe: dict[str, float],
+        replacements: list[tuple[ChosenSubstitution, dict[str, float]]],
+    ) -> None:
+        """No replacement above its spec's max_dosage_pct of the product (e.g. a dry DVS culture
+        at 0.05%): the model put 10 g of it where the spec says 0.2 g + 9.8 g of the base."""
+        total_mass = sum(recipe.values())
+        for sub, n in replacements:
+            limit = n.get("max_dosage_pct")
+            if limit is None:
+                continue
+            grams = sum(
+                s.grams
+                for s, _ in replacements
+                if s.nutrients_source == sub.nutrients_source
+                and s.nutrients_column == sub.nutrients_column
+            )
+            max_grams = limit * total_mass / 100
+            if grams > max_grams + 0.005:
+                raise ValueError(
+                    f"{sub.replacement!r}: {grams:g} g is {grams / total_mass:.2%} of the "
+                    f"product, {sub.nutrients_source} allows max {limit:g}% = {max_grams:.2f} g; "
+                    f"replace the rest of {sub.original!r}'s mass with the base ingredient as a "
+                    "second substitution"
+                )
+
+    def _drop_model_numbers(self, choice: Choice) -> None:
+        dropped = [w for w in choice.warnings if MODEL_NUMBER.search(w)]
+        if dropped:
+            choice.warnings = [w for w in choice.warnings if w not in dropped]
+            self._record(
+                "correction",
+                message=f"dropped model warnings with a dose or percentage (code computes "
+                f"every number): {dropped}",
+            )
 
     def _fix_sources(self, choice: Choice) -> None:
         # Cheap fixes made in place instead of costing a retry.

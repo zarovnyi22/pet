@@ -46,6 +46,7 @@ None of the 14 EU allergens.
 | Carbohydrates | 100 g (polyols) |
 | of which sugars | 0 g |
 | Relative sweetness (sucrose = 1) | 0.65 (range 0.6–0.7) |
+| Max dosage (% of product) | 15 (guideline-sugar-reduction; 8 in soft products) |
 
 ## Labelling
 

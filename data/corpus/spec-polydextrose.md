@@ -48,6 +48,7 @@ None of the 14 EU allergens. Produced from glucose (maize), sorbitol and citric 
 | of which sugars | 0 g |
 | Relative sweetness (sucrose = 1) | 0.05 (almost none) |
 | Fibre | 90 g |
+| Max dosage (% of product) | 10 (guideline-sugar-reduction) |
 
 ## Tolerance and labelling
 

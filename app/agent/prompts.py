@@ -118,13 +118,20 @@ plant-based culture.
 - substitutions: replace only what the goal requires. A substitution replaces `grams` of \
 the original with the same grams of the replacement; to replace an ingredient fully, use \
 its full grams. nutrients_source is the source of the replacement's nutrients.
+- max_dosage_pct next to a source is the most of the whole product it may be. When a \
+replacement must stay below it, give it only that small amount and replace the rest of the \
+original's grams with the base ingredient as a second substitution of the same original: \
+e.g. a 10 g bulk starter -> 0.2 g plant-based DVS culture + 9.8 g of the plant drink.
 - reduce_sugar: substitute the added sugar with the bulking agent(s) you choose. The grams \
-you give only set their proportions: code computes the exact amount that meets the goal.
+you give only set their proportions: code computes the exact amount that meets the goal. \
+An intense sweetener (e.g. stevia) may be added as one more substitution of the sugar, never \
+alone: code computes its dose from the sweetness gap.
 - sources: every doc_id or off:<code> that supports the substitution. Prefer trial reports. \
 confidence: "high" only with a trial report, "medium" with a spec or product, "low" with no \
 source (then explain in warnings).
 - allergens_before / allergens_after: EU allergen names from the schema. A replacement \
 may introduce a new allergen: list it and warn.
-- warnings: risks for texture, fermentation, labelling. Make no nutrition claims at all, \
-neither numbers nor comparisons such as "lower protein": code computes the before/after \
-values and adds the nutrition warnings itself."""
+- warnings: risks for texture, fermentation, labelling, in words only: no numbers at all \
+(no grams, percentages, temperatures or times). Make no nutrition claims either, not even \
+comparisons such as "lower protein". Code computes every number, adds the nutrition, \
+sweetness and dosage warnings itself, and drops warnings that state a dose or percentage."""

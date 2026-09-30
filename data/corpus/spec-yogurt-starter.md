@@ -27,6 +27,7 @@ A formula with 10 g starter per 1 kg (1%) almost always means a **bulk starter**
 | Fat | 2.5 g | 0.5 g |
 | Carbohydrates | 4.0 g | 90 g (maltodextrin carrier) |
 | of which sugars | 3.6 g | 5.0 g |
+| Max dosage (% of product) | — | 0.05 |
 
 At 0.02% dosage the freeze-dried culture contributes below 0.1 kcal per 100 g of yogurt and can be ignored in nutrition calculations; the bulk starter at 1–3% cannot.
 

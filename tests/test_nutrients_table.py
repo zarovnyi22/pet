@@ -40,7 +40,7 @@ def test_every_spec_in_the_corpus_has_all_five_nutrients(path):
     table = parse_nutrients_table(parse_markdown(path.read_text()).content)
     assert table, f"{path.name}: no nutrient table parsed"
     for column, values in table.items():
-        nutrients = set(values) - {"sweetness"}  # only sugars and sweeteners state one
+        nutrients = set(values) - {"sweetness", "max_dosage_pct"}  # only some specs have these
         assert nutrients == {"kcal", "protein_g", "fat_g", "carbs_g", "sugar_g"}, column
 
 

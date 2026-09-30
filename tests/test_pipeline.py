@@ -126,13 +126,22 @@ SOY = {
 PLANT_STARTER = {
     "original": "закваска",
     "replacement": "рослинна закваска",
-    "grams": 10,
+    "grams": 0.2,  # max 0.05% of the product (spec-yogurt-starter)
     "nutrients_source": "spec-yogurt-starter",
     "nutrients_column": DVS,
     "sources": ["spec-yogurt-starter"],
     "rationale": "dairy-free culture",
     "confidence": "medium",
 }
+
+
+def starter(base: dict = SOY) -> list[dict]:
+    """Bulk starter 10 g -> plant DVS culture 0.2 g + 9.8 g of the plant base, as the
+    Substitutes table of spec-yogurt-starter says."""
+    extra = {"original": "закваска", "grams": 9.8, "rationale": "starter mass as plant base"}
+    return [PLANT_STARTER, base | extra]
+
+
 ERYTHRITOL = {
     "original": "цукор",
     "replacement": "еритрит",
@@ -147,7 +156,7 @@ ERYTHRITOL = {
 def choice(**overrides) -> str:
     answer = {
         "original_nutrients": ORIGINALS,
-        "substitutions": [SOY, PLANT_STARTER],
+        "substitutions": [SOY, *starter()],
         "allergens_before": ["milk"],
         "allergens_after": ["soy"],
         "warnings": [],
@@ -184,7 +193,8 @@ async def test_remove_allergen_takes_every_number_from_the_sources():
         ("soy", 800, value("spec-soy-drink")),
         ("sugar", 90, value("spec-sucrose")),
         ("strawberry", 100, value("spec-strawberry-frozen")),
-        ("starter", 10, value("spec-yogurt-starter", DVS)),
+        ("starter", 0.2, value("spec-yogurt-starter", DVS)),
+        ("starter base", 9.8, value("spec-soy-drink")),
     )
     assert (out.allergens_before, out.allergens_after) == (["milk"], ["soybeans"])  # canonical
     calcs = [s for s in out.trace if s.tool == "calc_nutrition"]
@@ -234,7 +244,7 @@ async def test_unreachable_sugar_goal_is_retried_with_the_reason():
 
 async def test_source_without_data_is_retried_with_a_hint():
     unseen = SOY | {"nutrients_source": "spec-coconut"}
-    llm = FakeLLM([plan(), choice(substitutions=[unseen, PLANT_STARTER]), choice()])
+    llm = FakeLLM([plan(), choice(substitutions=[unseen, *starter()]), choice()])
     out = await run(llm)
 
     [error] = [s for s in out.trace if s.type == "validation_error"]
@@ -301,7 +311,7 @@ async def test_code_fixes_sources_confidence_and_warnings():
         "sources": ["trial-made-up"],  # never seen: dropped
         "confidence": "high",
     }
-    llm = FakeLLM([plan(), choice(substitutions=[oat, PLANT_STARTER])])
+    llm = FakeLLM([plan(), choice(substitutions=[oat, *starter(oat)])])
     out = await run(llm)
 
     sub = out.substitutions[0]
@@ -345,9 +355,7 @@ async def test_allergens_the_model_left_out_are_added_from_the_sources():
 
 async def test_remove_allergen_rejects_a_replacement_that_contains_it():
     cream = SOY | {"replacement": "вершки", "nutrients_source": "spec-milk-2-5"}
-    llm = FakeLLM(
-        [plan(), choice(substitutions=[cream, PLANT_STARTER], allergens_after=[]), choice()]
-    )
+    llm = FakeLLM([plan(), choice(substitutions=[cream, *starter()], allergens_after=[]), choice()])
     out = await run(llm)  # the model claimed milk-free; the source says otherwise
 
     [error] = [s for s in out.trace if s.type == "validation_error"]
@@ -357,7 +365,7 @@ async def test_remove_allergen_rejects_a_replacement_that_contains_it():
 
 async def test_make_vegan_rejects_an_ingredient_its_source_calls_non_vegan():
     request = YOGURT.model_copy(update={"goal": "make_vegan", "goal_params": GoalParams()})
-    only_starter = choice(substitutions=[PLANT_STARTER], allergens_after=["milk"])
+    only_starter = choice(substitutions=starter(), allergens_after=["milk"])
     llm = FakeLLM([plan(), only_starter, choice()])
     out = await run(llm, request)
 
@@ -395,7 +403,7 @@ async def test_spec_without_allergen_data_is_refused_then_warned():
 @pytest.mark.usefixtures("soy_without_allergens_table")
 async def test_retry_with_a_known_source_has_no_warning():
     oat = SOY | {"replacement": "вівсяний напій", "nutrients_source": "spec-oat-drink"}
-    fixed = choice(substitutions=[oat, PLANT_STARTER], allergens_after=["gluten"])
+    fixed = choice(substitutions=[oat, *starter(oat)], allergens_after=["gluten"])
     out = await run(FakeLLM([plan(), choice(), fixed]))
 
     assert out.substitutions[0].replacement == "вівсяний напій"
@@ -430,7 +438,7 @@ async def test_off_product_without_vegan_status_is_warned_and_low(monkeypatch):
         return {"query": name, "products": [off_drink("unknown")]}
 
     monkeypatch.setattr(tools_mod, "lookup_product", lookup)
-    answer = choice(substitutions=[COCONUT, PLANT_STARTER], allergens_after=[])
+    answer = choice(substitutions=[COCONUT, *starter(COCONUT)], allergens_after=[])
     out = await run(FakeLLM([plan_with_off_candidate(), answer]), VEGAN)
 
     assert not [s for s in out.trace if s.type == "validation_error"]  # warned, not refused
@@ -446,7 +454,7 @@ async def test_off_product_stated_non_vegan_is_refused(monkeypatch):
         return {"query": name, "products": [off_drink("no")]}
 
     monkeypatch.setattr(tools_mod, "lookup_product", lookup)
-    answer = choice(substitutions=[COCONUT, PLANT_STARTER], allergens_after=[])
+    answer = choice(substitutions=[COCONUT, *starter(COCONUT)], allergens_after=[])
     out = await run(FakeLLM([plan_with_off_candidate(), answer, choice()]), VEGAN)
 
     [error] = [s for s in out.trace if s.type == "validation_error"]
@@ -504,12 +512,54 @@ async def test_erythritol_and_polydextrose_half_and_half_warn_about_sweetness():
     assert [s.replacement for s in out.substitutions] == ["еритрит", "полідекстроза"]  # advice only
 
 
-async def test_enough_stevia_in_the_blend_gives_no_sweetness_warning():
+async def test_stevia_chosen_by_the_model_is_dosed_by_code():
+    too_much = STEVIA | {"grams": 0.4}  # live run 85: sweetness 90 -> ~164 g (+80%)
+    answer = choice(substitutions=[ERYTHRITOL, POLYDEXTROSE, too_much], allergens_after=["milk"])
+    out = await run(FakeLLM([plan(), answer]), SUGAR_30)
+
+    # Bulk as before (20.6 + 20.6 g). Gap: 90 - (48.8 + 20.6 x 0.65 + 20.6 x 0.05) = 26.8 g of
+    # sucrose equivalent; each gram of stevia instead of sugar adds 250 - 1 -> 0.11 g.
+    assert [s.grams for s in out.substitutions] == [20.6, 20.6, 0.11]
+    [fix] = [s.message for s in out.trace if s.type == "correction" and "stevia dose" in s.message]
+    assert fix == (
+        "stevia dose computed by code: 0.11 g of 'стевія' for a 26.8 g sucrose-equivalent gap "
+        "(the model proposed 0.4 g)"
+    )
+    assert sweetness_warnings(out) == []  # neither a drop nor a rise
+
+
+async def test_stevia_dose_is_capped_at_its_max_dosage(monkeypatch):
+    monkeypatch.setitem(TABLES["spec-stevia"]["Value"], "max_dosage_pct", 0.005)  # 0.05 g
     answer = choice(substitutions=[ERYTHRITOL, POLYDEXTROSE, STEVIA], allergens_after=["milk"])
     out = await run(FakeLLM([plan(), answer]), SUGAR_30)
 
-    assert out.substitutions[2].grams == 0.1  # 0.1 g x 250 = 25 g sucrose equivalent
-    assert sweetness_warnings(out) == []
+    assert out.substitutions[2].grams == 0.05
+    assert (
+        "стевія capped at the 0.005% limit of spec-stevia (0.05 g): it closes 12.5 of the 26.8 g "
+        "sucrose-equivalent gap."
+    ) in out.warnings
+    assert any(w.startswith("Sweetness drops by") for w in out.warnings)  # the rest of the gap
+
+
+async def test_intense_sweetener_alone_cannot_replace_sugar():
+    only_stevia = choice(substitutions=[STEVIA], allergens_after=["milk"])
+    fixed = choice(substitutions=[ERYTHRITOL, STEVIA], allergens_after=["milk"])
+    out = await run(FakeLLM([plan(), only_stevia, fixed]), SUGAR_30)
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert "['стевія'] add sweetness but no bulk" in error.message
+
+
+async def test_sweetness_rise_is_warned_too():
+    # Outside reduce_sugar the model's stevia dose is not recomputed: 0.4 g is far too much.
+    sugar_swap = [ERYTHRITOL | {"grams": 45}, STEVIA | {"grams": 0.4}]
+    answer = choice(substitutions=[SOY, *starter(), *sugar_swap])
+    out = await run(FakeLLM([plan(), answer]))
+
+    assert sweetness_warnings(out) == [
+        "Sweetness rises by 93%: sucrose equivalent 90.0 g -> 173.8 g per batch; the product "
+        "will taste sweeter than the original."
+    ]
 
 
 async def test_sugar_replacement_without_sweetness_data_is_flagged():
@@ -607,3 +657,33 @@ async def test_failed_llm_call_is_in_the_trace_with_its_attempts():
     [call] = [s for s in err.value.trace if s.type == "llm_call"]
     assert (call.tool, call.message) == ("plan", "llm_rate_limited")
     assert call.usage["http_attempts"] == 1 and call.usage["total_tokens"] == 0
+
+
+# --- dosage limits and the model's numbers ------------------------------------------------------
+
+
+async def test_dry_culture_above_its_max_dosage_is_refused_with_a_hint():
+    whole_mass = PLANT_STARTER | {"grams": 10}  # live runs: 10 g of a 0.05% culture
+    out = await run(FakeLLM([plan(), choice(substitutions=[SOY, whole_mass]), choice()]))
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert error.message == (
+        "'рослинна закваска': 10 g is 1.00% of the product, spec-yogurt-starter allows max 0.05% "
+        "= 0.50 g; replace the rest of 'закваска''s mass with the base ingredient as a second "
+        "substitution"
+    )
+    # The retry (0.2 g culture + 9.8 g soy base) passes the mass check: 10 g of 10 g replaced.
+    assert [(s.replacement, s.grams) for s in out.substitutions[1:]] == [
+        ("рослинна закваска", 0.2),
+        ("соєвий напій", 9.8),
+    ]
+
+
+async def test_model_warnings_with_doses_or_percentages_are_dropped():
+    wrong = "Use erythritol at 1.08% (10.8 g) of the product."  # live run: it was 2.04%
+    process = "Ferment the soy base longer than milk: the gel sets more slowly."
+    out = await run(FakeLLM([plan(), choice(warnings=[wrong, process])]))
+
+    assert wrong not in out.warnings and process in out.warnings
+    [fix] = [s.message for s in out.trace if s.type == "correction" and "dropped" in s.message]
+    assert fix.endswith(f"{[wrong]}")
