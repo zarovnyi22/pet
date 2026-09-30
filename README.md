@@ -118,6 +118,58 @@ curl -X POST localhost:8000/reformulate -H 'content-type: application/json' \
 }
 ```
 
+Другий приклад — інгредієнт поза корпусом: меду немає серед спек, тож його дані дає Open
+Food Facts:
+
+```bash
+curl -X POST localhost:8000/reformulate -H 'content-type: application/json' \
+  -H 'X-Request-ID: honey-demo' -d '{
+  "product_name": "Полуничний йогурт з медом",
+  "ingredients": [{"name": "молоко 2.5%", "grams": 800}, {"name": "цукор", "grams": 60},
+                  {"name": "мед", "grams": 30}, {"name": "полуниця заморожена", "grams": 100},
+                  {"name": "закваска", "grams": 10}],
+  "goal": "make_vegan", "goal_params": {}}'
+```
+
+У trace: план зіставляє «мед» з англ. `honey` без спеки, тож код викликає
+`lookup_product("honey")` (крок `tool_call`) і пропонує моделі до трьох продуктів з
+нутрієнтами, алергенами і веганським статусом; продукти без жодних нутрієнтів (усе 0 чи
+порожньо) відкидаються, у результаті інструмента видно `skipped`. Далі:
+- модель лишила мед, а OFF позначає його `vegan: no` (тег `en:non-vegan`) або не дає статусу
+  взагалі — вибір відхиляється (`validation_error: ['мед'] are not vegan according to their
+  sources` або `status unknown for мед (off:…: vegan status not given)`), і повтор замінює мед;
+- модель одразу замінила мед (вона й сама знає, що мед не веганський) — відмови немає, мед
+  серед `substitutions`;
+- OFF не відповів (таймаут 5 с) — у меду немає джерела, вибір відхиляється як «невідомо», а
+  якщо й повтор лишив мед — відповідь із явним попередженням `status unknown for мед (no
+  source)`.
+
+Сценарії з відмовою покриті тестами з фейковим OFF. Наживо (run 104) вийшов другий сценарій,
+скорочено:
+
+```text
+step stage type        tool             що сталося
+1    1     llm_call    plan             мед -> honey, без спеки; кандидати: соєвий і вівсяний
+                                        напої, рослинна закваска, agave syrup (теж без спеки)
+3    2     tool_call   lookup_product   "honey": products [], skipped: 9 "no kcal per 100 g",
+                                        1 "kcal, protein, fat and carbs all zero or missing"
+4    2     tool_call   lookup_product   "agave syrup": 3 продукти, off:5201434000719
+                                        Organic Agave Syrup (vegan: yes), ...
+7    3     llm_call    choose           мед -> Organic Agave Syrup 30 г (off:5201434000719);
+                                        молоко -> соєвий напій 800 г; закваска -> DVS 0.4 г +
+                                        соєвий напій 9.6 г
+8    3     correction                   replacement name 'Freeze-dried plant-based DVS' ->
+                                        'Yogurt Starter Cultures (...) (Freeze-dried plant-based DVS)'
+9–10 3     tool_call   calc_nutrition   до: 70.45 kcal, цукор 10.26 г; після: 63.25 kcal, 8.94 г
+```
+
+У `warnings` — `New allergen: soybeans (from Soy Drink, Unsweetened)…` від коду і
+`No nutrient data for мед (before): kcal, protein_g, fat_g, carbs_g, sugar_g`. Нутрієнти «до»
+пораховані без меду, бо даних про нього немає ні в корпусі, ні в OFF: на запит `honey` із 10
+результатів калорійність є лише в одного, і той має 0 kcal без інших нутрієнтів, тож його
+відкинуто. Сервіс про це попереджає, а не вигадує числа. (У самому запуску 104 це ще були
+п'ять рядків, по одному на нутрієнт; тепер — один рядок на інгредієнт.)
+
 Помилки завжди в одному форматі: `{"error": {"code": "...", "message": "..."}}`; помилки агента
 (`agent_timeout` 504, `agent_invalid_output` 502, `llm_unavailable` 503) додають поруч `trace`.
 Помилки LLM: `llm_not_configured` 503 (ключ не задано), `llm_invalid_key` 503 (ключ

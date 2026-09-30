@@ -793,3 +793,93 @@ async def test_kept_off_ingredient_without_vegan_status_is_refused_for_make_vega
     [error] = [s for s in out.trace if s.type == "validation_error"]
     assert "полуниця заморожена (off:5010251784173: vegan status not given)" in error.message
     assert not [w for w in out.warnings if "not verified" in w]
+
+
+# --- Open Food Facts demo: honey is not in the corpus -------------------------------------------
+
+HONEY_YOGURT = ReformulateIn(
+    product_name="Полуничний йогурт з медом",
+    ingredients=[
+        {"name": "молоко 2.5%", "grams": 800},
+        {"name": "цукор", "grams": 60},
+        {"name": "мед", "grams": 30},
+        {"name": "полуниця заморожена", "grams": 100},
+        {"name": "закваска", "grams": 10},
+    ],
+    goal="make_vegan",
+)
+OFF_HONEY = {
+    "source": "off:3017620422003",
+    "product_name": "Acacia honey",
+    "nutrients_per_100g": {
+        "kcal": 304,
+        "protein_g": 0.3,
+        "fat_g": 0,
+        "carbs_g": 82.4,
+        "sugar_g": 82.1,
+    },
+    "allergens": [],
+    "vegan": "no",  # Open Food Facts tags honey en:non-vegan
+}
+HONEY_TO_SUGAR = {
+    "original": "мед",
+    "replacement": "цукор",
+    "grams": 30,
+    "nutrients_source": "spec-sucrose",
+    "sources": ["spec-sucrose"],
+    "rationale": "plant-based sweetener, same mass",
+    "confidence": "medium",
+}
+
+
+def honey_plan() -> str:
+    data = json.loads(plan())
+    data["ingredients"].insert(2, {"name": "мед", "english": "honey", "spec": None})
+    return json.dumps(data, ensure_ascii=False)
+
+
+def honey_choice(substitutions: list[dict], honey_source: str | None = OFF_HONEY["source"]) -> str:
+    originals = [*ORIGINALS, {"name": "мед", "nutrients_source": honey_source}]
+    return choice(original_nutrients=originals, substitutions=substitutions, allergens_after=[])
+
+
+async def test_honey_is_found_on_open_food_facts_and_refused_as_not_vegan(monkeypatch):
+    async def lookup(http, name):
+        return {"query": name, "products": [OFF_HONEY]}
+
+    monkeypatch.setattr(tools_mod, "lookup_product", lookup)
+    kept_honey = honey_choice([SOY, *starter()])
+    replaced = honey_choice([SOY, *starter(), HONEY_TO_SUGAR])
+    out = await run(FakeLLM([honey_plan(), kept_honey, replaced]), HONEY_YOGURT)
+
+    [lookup_step] = [s for s in out.trace if s.tool == "lookup_product"]
+    assert lookup_step.arguments == {"name": "honey"}  # no spec: code asked Open Food Facts
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert error.message == "['мед'] are not vegan according to their sources: replace them too"
+    assert ("мед", "Sucrose (White Sugar)", 30) in [
+        (s.original, s.replacement, s.grams) for s in out.substitutions
+    ]
+    assert out.allergens_after == ["soybeans"]
+
+
+async def test_honey_without_open_food_facts_is_refused_then_flagged(monkeypatch):
+    async def lookup(http, name):
+        return {"error": "Open Food Facts timed out after 5s"}
+
+    monkeypatch.setattr(tools_mod, "lookup_product", lookup)
+    no_source = honey_choice([SOY, *starter()], honey_source=None)  # nothing to cite
+    out = await run(FakeLLM([honey_plan(), no_source, no_source]), HONEY_YOGURT)
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert "status unknown for мед (no source); unknown is not safe" in error.message
+    # The retry kept it too: the answer comes back, but says plainly that honey is unverified.
+    assert (
+        "allergen/vegan status unknown for мед (no source): not verified, check before any "
+        "allergen or vegan claim"
+    ) in out.warnings
+    # Its nutrients are unknown as well: one line per ingredient and side, not one per nutrient.
+    missing = [w for w in out.warnings if w.startswith("No nutrient data")]
+    assert missing == [
+        "No nutrient data for мед (before): kcal, protein_g, fat_g, carbs_g, sugar_g",
+        "No nutrient data for мед (after): kcal, protein_g, fat_g, carbs_g, sugar_g",
+    ]

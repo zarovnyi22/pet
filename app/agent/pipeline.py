@@ -763,9 +763,14 @@ class ReformulationPipeline:
         p0, p1 = before["per_100g"]["protein_g"], after["per_100g"]["protein_g"]
         if p0 and (p0 - p1) / p0 > PROTEIN_DROP_WARNING:
             warnings.append(f"Protein drops from {p0} to {p1} g per 100 g ({(p0 - p1) / p0:.0%}).")
+        # One line per ingredient: honey with no source used to give five near-identical ones.
         for label, result in (("before", before), ("after", after)):
+            by_ingredient: dict[str, list[str]] = {}
             for nutrient, names in result["missing"].items():
-                warnings.append(f"No {nutrient} data for {', '.join(names)} ({label}).")
+                for name in names:
+                    by_ingredient.setdefault(name, []).append(nutrient)
+            for name, nutrients in by_ingredient.items():
+                warnings.append(f"No nutrient data for {name} ({label}): {', '.join(nutrients)}")
 
         return ReformulateOut(
             substitutions=substitutions,
