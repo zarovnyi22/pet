@@ -108,5 +108,6 @@ async def health(request: Request) -> JSONResponse:
             "status": "ok" if ok else "degraded",
             "db": db,
             "llm_provider": get_settings().llm_provider,
+            "llm_fallback_provider": get_settings().llm_fallback_provider or None,
         },
     )

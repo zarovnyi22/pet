@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.llm.base import (
+    Endpoint,
     LLMClient,
     LLMError,
     LLMResponse,
@@ -63,14 +64,14 @@ class GeminiClient(LLMClient):
 
     async def _generate(self, body: dict[str, Any]) -> LLMResponse:
         require_key(self.provider, self.key_env, self._api_key)
-        data = await post_json(
-            self._http,
+        endpoint = Endpoint(
             self.provider,
             self.key_env,
             f"{BASE_URL}/{self._model}:generateContent",
             {"x-goog-api-key": self._api_key},
-            body,
+            usage,
         )
+        data = await post_json(self._http, endpoint, body)
         candidates = data.get("candidates") or []
         if not candidates:
             reason = data.get("promptFeedback", {}).get("blockReason", "no candidates")
@@ -97,6 +98,23 @@ class GeminiClient(LLMClient):
             elif "text" in part and not part.get("thought"):
                 texts.append(part["text"])
         return LLMResponse(text="".join(texts), tool_calls=calls)
+
+
+def usage(data: dict[str, Any]) -> dict[str, int]:
+    """usageMetadata -> our token fields. candidatesTokenCount excludes thinking, so thoughts
+    are added to output: they are generated and billed against the same limits."""
+    meta = data.get("usageMetadata")
+    if not meta:
+        return {}
+    prompt = meta.get("promptTokenCount", 0)
+    thoughts = meta.get("thoughtsTokenCount", 0)
+    output = meta.get("candidatesTokenCount", 0) + thoughts
+    return {
+        "input_tokens": prompt,
+        "output_tokens": output,
+        "reasoning_tokens": thoughts,
+        "total_tokens": meta.get("totalTokenCount", prompt + output),
+    }
 
 
 def _to_contents(messages: list[Message]) -> list[dict[str, Any]]:

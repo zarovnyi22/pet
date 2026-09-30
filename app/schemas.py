@@ -170,6 +170,9 @@ class TraceStep(BaseModel):
     result: Any = None
     message: str | None = None
     duration_ms: int | None = None
+    # llm_call: provider, http_attempts, input/output/reasoning/total tokens, and at_ms (start,
+    # ms since the run began) - what a tokens-per-minute limit sees.
+    usage: dict[str, Any] | None = None
 
 
 class ReformulationAnswer(BaseModel):

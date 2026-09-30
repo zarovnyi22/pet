@@ -33,7 +33,7 @@ from app.agent.common import (
 )
 from app.agent.prompts import CHOOSE_PROMPT, PLAN_PROMPT
 from app.agent.tools import Toolbox
-from app.llm.base import LLMClient, LLMError, Message
+from app.llm.base import LLMClient, LLMError, Message, summarize_attempts, track_attempts
 from app.retrieval import doc_allergens, doc_nutrients, spec_catalog
 from app.schemas import (
     Confidence,
@@ -163,9 +163,11 @@ class ReformulationPipeline:
         self._stage = 0
         self._attempt = 1  # of the current LLM step: unknown allergen status is refused once
         self._deadline = 0.0
+        self._started = 0.0
 
     async def run(self, request: ReformulateIn) -> ReformulateOut:
-        self._deadline = time.monotonic() + self.timeout_seconds
+        self._started = time.monotonic()
+        self._deadline = self._started + self.timeout_seconds
         try:
             return await self._run(request)
         except OutOfTime:
@@ -210,12 +212,21 @@ class ReformulationPipeline:
         for attempt in (1, 2):
             self._attempt = attempt
             started = time.monotonic()
-            text = await self._bounded(self.llm.complete(messages, json_mode=True))
+            at_ms = {"at_ms": int((started - self._started) * 1000)}
+            with track_attempts() as attempts:
+                try:
+                    text = await self._bounded(self.llm.complete(messages, json_mode=True))
+                except LLMError as exc:
+                    # A failed call (429, 503 after retries) still spent attempts, maybe tokens.
+                    usage = summarize_attempts(attempts) | at_ms
+                    self._record("llm_call", tool=purpose, message=exc.code, usage=usage)
+                    raise
             self._record(
                 "llm_call",
                 tool=purpose,
                 result=shorten(_parse_json_or_text(text)),
                 duration_ms=int((time.monotonic() - started) * 1000),
+                usage=summarize_attempts(attempts) | at_ms,
             )
             try:
                 return await parse(_parse_json(text))

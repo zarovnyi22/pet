@@ -1,5 +1,5 @@
 # Everything runs in Docker: the host needs only docker compose (no Python, no uv).
-.PHONY: up down logs health ingest eval eval-translate test lint fmt
+.PHONY: up down logs health ingest eval eval-translate tokens test lint fmt
 
 up:      ## build and start db + api in the background
 	docker compose up --build -d
@@ -21,6 +21,9 @@ eval:    ## recall@5 of /ask search, en vs uk questions (search only, no LLM cal
 
 eval-translate:  ## same + uk questions translated as /ask does (live LLM: 1 call per question)
 	docker compose exec api python -m eval.recall --translate
+
+tokens:  ## token usage of recent /reformulate runs (make tokens ARGS="--last 3")
+	docker compose exec api python -m eval.tokens $(ARGS)
 
 test:    ## ruff + pytest, offline and without LLM keys, on the reformulation_test database
 	docker compose run --rm test

@@ -43,6 +43,7 @@ async def test_health_ok(db_client):
         "status": "ok",
         "db": "ok",
         "llm_provider": get_settings().llm_provider,
+        "llm_fallback_provider": get_settings().llm_fallback_provider or None,
     }
 
 

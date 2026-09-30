@@ -2,6 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from app.agent import pipeline as pipeline_mod
@@ -12,6 +13,7 @@ from app.agent.tools import NutritionIngredient, Toolbox, calc_nutrition
 from app.allergens import parse_allergens_table
 from app.ingest import parse_nutrients_table
 from app.llm.fake import FakeLLM
+from app.llm.gemini import GeminiClient
 from app.schemas import GoalParams, ReformulateIn, Source
 
 # Every test here runs against the fixture knowledge base below; other modules opt in explicitly.
@@ -555,3 +557,53 @@ async def test_toolbox_backs_a_copied_sweetness_and_rejects_an_invented_one():
 
     assert [(r["ingredient"], r["nutrients"]) for r in result["rejected"]] == [("b", ["sweetness"])]
     assert result["per_100g"]["carbs_g"] == 100  # nutrients themselves are unaffected
+
+
+# --- token usage in the trace -----------------------------------------------------------------
+
+
+async def test_llm_calls_record_provider_tokens_and_start_time(monkeypatch):
+    answers = iter([plan(), choice()])
+
+    def gemini_answer(request):
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [{"content": {"parts": [{"text": next(answers)}]}}],
+                "usageMetadata": {"promptTokenCount": 1000, "candidatesTokenCount": 200},
+            },
+        )
+
+    llm = GeminiClient("key", "gemini-test", 5)
+    await llm.aclose()
+    llm._http = httpx.AsyncClient(transport=httpx.MockTransport(gemini_answer))
+    out = await run(llm)
+    await llm.aclose()
+
+    calls = [s for s in out.trace if s.type == "llm_call"]
+    assert [c.tool for c in calls] == ["plan", "choose"]
+    for call in calls:
+        assert call.usage | {"at_ms": 0} == {
+            "provider": "gemini",
+            "http_attempts": 1,
+            "input_tokens": 1000,
+            "output_tokens": 200,
+            "reasoning_tokens": 0,
+            "total_tokens": 1200,
+            "at_ms": 0,
+        }
+    assert 0 <= calls[0].usage["at_ms"] <= calls[1].usage["at_ms"]
+
+
+async def test_failed_llm_call_is_in_the_trace_with_its_attempts():
+    llm = GeminiClient("key", "gemini-test", 5)
+    await llm.aclose()
+    llm._http = httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(429)))
+    with pytest.raises(AgentError) as err:
+        await run(llm)
+    await llm.aclose()
+
+    assert err.value.code == "llm_rate_limited"
+    [call] = [s for s in err.value.trace if s.type == "llm_call"]
+    assert (call.tool, call.message) == ("plan", "llm_rate_limited")
+    assert call.usage["http_attempts"] == 1 and call.usage["total_tokens"] == 0

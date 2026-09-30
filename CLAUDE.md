@@ -26,7 +26,7 @@ RAG-пошук (/ask), агент переформулювання (/reformulate
 | Доступ до бази | asyncpg напряму, ручний SQL (без SQLAlchemy/Alembic — один день) |
 | Ембединги | sentence-transformers, `all-MiniLM-L6-v2`, 384 виміри, локально на CPU |
 | LLM, основний | Gemini API (Google AI Studio), сімейство Flash, `LLM_PROVIDER=gemini` |
-| LLM, запасний | Groq free tier, `openai/gpt-oss-120b` (Llama на Groq більше недоступна), `LLM_PROVIDER=groq` |
+| LLM, запасний | Groq free tier, `openai/gpt-oss-120b` (Llama на Groq більше недоступна), `LLM_PROVIDER=groq`; або автоматично через `LLM_FALLBACK_PROVIDER=groq` (після вичерпаних повторів на 503 чи на 429). `GROQ_REASONING_EFFORT` (low/medium/high; за замовчуванням low, порожньо = не передається) |
 | Дані про продукти | Open Food Facts API, без ключа |
 | Контейнери | Docker, Docker Compose (обов'язково) |
 | Тести | pytest, pytest-asyncio, httpx |
@@ -81,6 +81,7 @@ reformulation-assistant/
 │   │   ├── base.py          # інтерфейс LLMClient
 │   │   ├── gemini.py
 │   │   ├── groq.py
+│   │   ├── fallback.py      # FallbackLLMClient: основний → запасний (LLM_FALLBACK_PROVIDER)
 │   │   └── fake.py          # для тестів
 │   ├── agent/
 │   │   ├── pipeline.py      # фіксований пайплайн — робочий шлях /reformulate
@@ -323,7 +324,7 @@ CREATE TABLE reformulation_runs (
 
 **Готово, коли:** приклад із README дає попередження про солодкість; тест зелений.
 
-### [ ] 5. Запасний провайдер для `/reformulate` і розумні повтори
+### [x] 5. Запасний провайдер для `/reformulate` і розумні повтори
 
 **Проблема.** Висновок «Groq не вміщається в 8K TPM» зроблено на вільному циклі (~25K
 токенів). ПМ оцінює пайплайн у ~3.8K вхідних / ~5.3K разом із відповідями — тобто
@@ -369,6 +370,18 @@ CREATE TABLE reformulation_runs (
 **Проблема.** Для заміни bulk-закваски модель ставить 10 г сухої DVS-закваски замість
 0.2 г DVS + 9.8 г рослинної основи, як велить `spec-yogurt-starter` («Substitutes»). Через
 це нутрієнти «після» завищені: колонка DVS — 380 ккал і 90 г вуглеводів на 100 г.
+
+**Ще одне спостереження (живий `reduce_sugar`).** `_solve_sugar_dose` масштабує всю суміш
+замінників і округлює кожну позицію до 0.1 г. Стевія 0.05 г після масштабування дала
+0.076 г, а після округлення стала 0.1 г. Для інтенсивних підсолоджувачів (`sweetness > 10`)
+треба округлювати до 0.01 г.
+
+**Ще два спостереження (Groq, `GROQ_REASONING_EFFORT=low`, run 85).**
+- Модель поставила 0.4 г стевії, і цукровий еквівалент виріс з 90 до ~164 г (+80%).
+  `_check_sweetness` попереджає лише про падіння, а треба й про зростання більше ніж на 15%.
+- Модель пише у `warnings` власні числа, і вони хибні: «erythritol 1.08% (10.8 g)» при
+  20.4 г (2.04%), «stevia 0.02%» при 0.04%. Треба заборонити числа у warnings моделі в
+  `CHOOSE_PROMPT` або відкидати такі рядки кодом.
 
 ## Бонуси (тільки після готовності основного блоку)
 
