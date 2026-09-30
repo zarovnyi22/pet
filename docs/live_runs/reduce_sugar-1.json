@@ -2,9 +2,9 @@
   "substitutions": [
     {
       "original": "цукор",
-      "replacement": "эритритол",
-      "grams": 20.6,
-      "rationale": "Replacing part of the sugar to maintain bulk and sweetness with erythritol while respecting the maximum dosage limit.",
+      "replacement": "Erythritol (E968)",
+      "grams": 41.1,
+      "rationale": "Partially replace sucrose with erythritol to provide bulk and sweetness while reducing sugar content.",
       "sources": [
         "spec-erythritol"
       ],
@@ -12,19 +12,9 @@
     },
     {
       "original": "цукор",
-      "replacement": "полидекстроза",
-      "grams": 20.6,
-      "rationale": "Replacing part of the sugar with polydextrose to restore bulk and fiber without adding excess sweetness or calories.",
-      "sources": [
-        "spec-polydextrose"
-      ],
-      "confidence": "medium"
-    },
-    {
-      "original": "цукор",
-      "replacement": "стевиолгликозиды",
-      "grams": 0.11,
-      "rationale": "Adding an intense sweetener to make up for the sweetness gap created by the reduced sugar.",
+      "replacement": "Steviol Glycosides (E960a, Reb A 97%)",
+      "grams": 0.06,
+      "rationale": "Add intense sweetener to make up for the sweetness lost by removing sucrose.",
       "sources": [
         "spec-stevia"
       ],
@@ -46,15 +36,15 @@
       "sugar_g": 13.26
     },
     "after": {
-      "kcal": 67.99,
+      "kcal": 65.99,
       "protein_g": 2.39,
       "fat_g": 2.04,
-      "carbs_g": 11.72,
-      "sugar_g": 9.12
+      "carbs_g": 13.7,
+      "sugar_g": 9.14
     }
   },
   "warnings": [
-    "Exceeding maximum dosage limits may cause digestive discomfort due to polyols and bulking agents. Ensure thorough mixing to prevent crystallization issues."
+    "High levels of polyols may cause a cooling effect and laxative effects if consumed in excess."
   ],
   "trace": [
     {
@@ -67,54 +57,54 @@
         "ingredients": [
           {
             "name": "молоко 2.5%",
-            "english": "milk 2.5%",
+            "english": "Milk 2.5%",
             "spec": "spec-milk-2-5"
           },
           {
             "name": "цукор",
-            "english": "sugar",
+            "english": "Sucrose",
             "spec": "spec-sucrose"
           },
           {
             "name": "полуниця заморожена",
-            "english": "frozen strawberry",
+            "english": "Frozen Strawberries",
             "spec": "spec-strawberry-frozen"
           },
           {
             "name": "закваска",
-            "english": "starter culture",
+            "english": "Yogurt Starter",
             "spec": "spec-yogurt-starter"
           }
         ],
         "candidates": [
           {
-            "english": "erythritol",
+            "english": "Erythritol",
             "spec": "spec-erythritol"
           },
           {
-            "english": "polydextrose",
+            "english": "Polydextrose",
             "spec": "spec-polydextrose"
           },
           {
-            "english": "steviol glycosides",
+            "english": "Steviol Glycosides",
             "spec": "spec-stevia"
           }
         ],
         "queries": [
-          "sugar reduction in yogurt bulking agents",
+          "sugar reduction in yogurt bulk sweetener replacement",
           "erythritol and polydextrose in low sugar yogurt formulation"
         ]
       },
       "message": null,
-      "duration_ms": 1781,
+      "duration_ms": 1446,
       "usage": {
         "provider": "gemini",
         "http_attempts": 1,
         "input_tokens": 683,
-        "output_tokens": 303,
+        "output_tokens": 309,
         "reasoning_tokens": 0,
-        "total_tokens": 986,
-        "at_ms": 2
+        "total_tokens": 992,
+        "at_ms": 5
       }
     },
     {
@@ -223,27 +213,27 @@
       "type": "tool_call",
       "tool": "search_knowledge_base",
       "arguments": {
-        "query": "sugar reduction in yogurt bulking agents"
+        "query": "sugar reduction in yogurt bulk sweetener replacement"
       },
       "result": {
         "chunks": [
           {
-            "doc_id": "spec-milk-2-5",
-            "title": "Milk 2.5% Fat — Ingredient Specification",
-            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
-            "score": 0.617
-          },
-          {
             "doc_id": "spec-strawberry-frozen",
             "title": "Strawberries, Frozen, Unsweetened — Ingredient Specification",
             "chunk_text": "--|---|\n| Energy | 35 kcal |\n| Protein | 0.4 g |\n| Fat | 0.1 g |\n| Carbohydrates | 9.1 g |\n| of which sugars | 4.6 g |\n| Fibre | 2.1 g |\n\n## Sugar reduction notes\n\n- Strawberries themselves contribute little sugar: 100 g in 1 kg of yogurt adds only 0.46 g sugars per 100 g of product. In a sugar-redu…",
-            "score": 0.6153
+            "score": 0.6604
           },
           {
             "doc_id": "spec-sucrose",
             "title": "Sucrose (White Sugar) — Ingredient Specification",
             "chunk_text": "# Sucrose, Fine Granulated White Sugar\n\n**Supplier grade:** beet sugar, purity ≥ 99.7%, particle size 0.3–0.6 mm, moisture ≤ 0.06%.\n\n## Function\n\nSugar does much more than sweeten. Before reducing it, check which of these functions the product depends on:\n\n- **Sweetness:** reference sweetness 1.0.\n-…",
-            "score": 0.5854
+            "score": 0.5671
+          },
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
+            "score": 0.5492
           }
         ],
         "nutrients_per_100g": {
@@ -272,7 +262,7 @@
         }
       },
       "message": null,
-      "duration_ms": 43,
+      "duration_ms": 48,
       "usage": null
     },
     {
@@ -326,7 +316,7 @@
         }
       },
       "message": null,
-      "duration_ms": 44,
+      "duration_ms": 47,
       "usage": null
     },
     {
@@ -361,35 +351,24 @@
         "substitutions": [
           {
             "original": "цукор",
-            "replacement": "эритритол",
-            "grams": 13.5,
+            "replacement": "Erythritol (E968)",
+            "grams": 27.0,
             "nutrients_source": "spec-erythritol",
             "sources": [
               "spec-erythritol"
             ],
-            "rationale": "Replacing part of the sugar to maintain bulk and sweetness with erythritol while respecting the maximum dosage limit.",
+            "rationale": "Partially replace sucrose with erythritol to provide bulk and sweetness while reducing sugar content.",
             "confidence": "high"
           },
           {
             "original": "цукор",
-            "replacement": "полидекстроза",
-            "grams": 13.5,
-            "nutrients_source": "spec-polydextrose",
-            "sources": [
-              "spec-polydextrose"
-            ],
-            "rationale": "Replacing part of the sugar with polydextrose to restore bulk and fiber without adding excess sweetness or calories.",
-            "confidence": "high"
-          },
-          {
-            "original": "цукор",
-            "replacement": "стевиолгликозиды",
-            "grams": 0.045,
+            "replacement": "Steviol Glycosides (E960a, Reb A 97%)",
+            "grams": 0.2,
             "nutrients_source": "spec-stevia",
             "sources": [
               "spec-stevia"
             ],
-            "rationale": "Adding an intense sweetener to make up for the sweetness gap created by the reduced sugar.",
+            "rationale": "Add intense sweetener to make up for the sweetness lost by removing sucrose.",
             "confidence": "high"
           }
         ],
@@ -400,19 +379,19 @@
           "milk"
         ],
         "warnings": [
-          "Exceeding maximum dosage limits may cause digestive discomfort due to polyols and bulking agents. Ensure thorough mixing to prevent crystallization issues."
+          "High levels of polyols may cause a cooling effect and laxative effects if consumed in excess."
         ]
       },
       "message": null,
-      "duration_ms": 2004,
+      "duration_ms": 14495,
       "usage": {
         "provider": "gemini",
         "http_attempts": 1,
-        "input_tokens": 3221,
-        "output_tokens": 371,
+        "input_tokens": 3223,
+        "output_tokens": 491,
         "reasoning_tokens": 0,
-        "total_tokens": 3592,
-        "at_ms": 1830
+        "total_tokens": 3714,
+        "at_ms": 1505
       }
     },
     {
@@ -433,7 +412,8 @@
               "protein_g": 2.9
             },
             "nutrients_source": "spec-milk-2-5",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "цукор",
@@ -447,7 +427,8 @@
               "sweetness": 1.0
             },
             "nutrients_source": "spec-sucrose",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "полуниця заморожена",
@@ -460,7 +441,8 @@
               "protein_g": 0.4
             },
             "nutrients_source": "spec-strawberry-frozen",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "закваска",
@@ -473,7 +455,8 @@
               "protein_g": 3.0
             },
             "nutrients_source": "spec-yogurt-starter",
-            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)",
+            "kept": true
           }
         ]
       },
@@ -511,7 +494,7 @@
       "tool": null,
       "arguments": null,
       "result": null,
-      "message": "stevia dose computed by code: 0.11 g of 'стевиолгликозиды' for a 26.8 g sucrose-equivalent gap (the model proposed 0.045 g)",
+      "message": "stevia dose computed by code: 0.06 g of 'Steviol Glycosides (E960a, Reb A 97%)' for a 14.4 g sucrose-equivalent gap (the model proposed 0.2 g)",
       "duration_ms": null,
       "usage": null
     },
@@ -533,11 +516,12 @@
               "protein_g": 2.9
             },
             "nutrients_source": "spec-milk-2-5",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "цукор",
-            "grams": 48.69,
+            "grams": 48.84,
             "nutrients_per_100g": {
               "kcal": 400.0,
               "fat_g": 0.0,
@@ -547,7 +531,8 @@
               "sweetness": 1.0
             },
             "nutrients_source": "spec-sucrose",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "полуниця заморожена",
@@ -560,7 +545,8 @@
               "protein_g": 0.4
             },
             "nutrients_source": "spec-strawberry-frozen",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "закваска",
@@ -573,11 +559,12 @@
               "protein_g": 3.0
             },
             "nutrients_source": "spec-yogurt-starter",
-            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)",
+            "kept": true
           },
           {
-            "name": "эритритол",
-            "grams": 20.6,
+            "name": "Erythritol (E968)",
+            "grams": 41.1,
             "nutrients_per_100g": {
               "kcal": 0.0,
               "fat_g": 0.0,
@@ -588,26 +575,12 @@
               "max_dosage_pct": 15.0
             },
             "nutrients_source": "spec-erythritol",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": false
           },
           {
-            "name": "полидекстроза",
-            "grams": 20.6,
-            "nutrients_per_100g": {
-              "kcal": 100.0,
-              "fat_g": 0.0,
-              "carbs_g": 4.0,
-              "sugar_g": 0.0,
-              "protein_g": 0.0,
-              "sweetness": 0.05,
-              "max_dosage_pct": 10.0
-            },
-            "nutrients_source": "spec-polydextrose",
-            "nutrients_column": null
-          },
-          {
-            "name": "стевиолгликозиды",
-            "grams": 0.11,
+            "name": "Steviol Glycosides (E960a, Reb A 97%)",
+            "grams": 0.06,
             "nutrients_per_100g": {
               "kcal": 0.0,
               "fat_g": 0.0,
@@ -618,18 +591,19 @@
               "max_dosage_pct": 0.05
             },
             "nutrients_source": "spec-stevia",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": false
           }
         ]
       },
       "result": {
         "total_grams": 1000.0,
         "per_100g": {
-          "kcal": 67.99,
+          "kcal": 65.99,
           "protein_g": 2.39,
           "fat_g": 2.04,
-          "carbs_g": 11.72,
-          "sugar_g": 9.12
+          "carbs_g": 13.7,
+          "sugar_g": 9.14
         },
         "missing": {},
         "rejected": []
@@ -645,7 +619,7 @@
       "tool": null,
       "arguments": null,
       "result": null,
-      "message": "confidence of 'цукор' -> 'эритритол' lowered from high to medium: no trial report among sources ['spec-erythritol']",
+      "message": "confidence of 'цукор' -> 'Erythritol (E968)' lowered from high to medium: no trial report among sources ['spec-erythritol']",
       "duration_ms": null,
       "usage": null
     },
@@ -656,18 +630,7 @@
       "tool": null,
       "arguments": null,
       "result": null,
-      "message": "confidence of 'цукор' -> 'полидекстроза' lowered from high to medium: no trial report among sources ['spec-polydextrose']",
-      "duration_ms": null,
-      "usage": null
-    },
-    {
-      "step": 12,
-      "iteration": 4,
-      "type": "correction",
-      "tool": null,
-      "arguments": null,
-      "result": null,
-      "message": "confidence of 'цукор' -> 'стевиолгликозиды' lowered from high to medium: no trial report among sources ['spec-stevia']",
+      "message": "confidence of 'цукор' -> 'Steviol Glycosides (E960a, Reb A 97%)' lowered from high to medium: no trial report among sources ['spec-stevia']",
       "duration_ms": null,
       "usage": null
     }

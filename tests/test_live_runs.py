@@ -1,8 +1,10 @@
 """The checks of scripts/live_runs.py on stored answers: no service, no LLM."""
 
+import httpx
 import pytest
 
-from scripts.live_runs import check, starter_problems, usage
+from scripts import live_runs
+from scripts.live_runs import check, starter_problems, usage, wait_for_health
 
 DVS = "Freeze-dried plant-based DVS"
 
@@ -114,3 +116,29 @@ def test_allergen_already_in_the_recipe_needs_no_warning():
     body["allergens_before"] = ["milk", "soybeans"]
     body["warnings"] = []
     assert check("make_vegan", 200, body) == []
+
+
+def health_client(*answers) -> httpx.Client:
+    """/health answers these in turn: an exception or (status, json)."""
+    queue = list(answers)
+
+    def handler(request):
+        answer = queue.pop(0) if len(queue) > 1 else queue[0]
+        if isinstance(answer, Exception):
+            raise answer
+        return httpx.Response(answer[0], json=answer[1])
+
+    return httpx.Client(base_url="http://api:8000", transport=httpx.MockTransport(handler))
+
+
+def test_waits_until_the_service_is_healthy(monkeypatch):
+    monkeypatch.setattr(live_runs.time, "sleep", lambda s: None)
+    ok = {"status": "ok", "db": "ok", "llm_provider": "gemini"}
+    http = health_client(httpx.ConnectError("refused"), (503, {"status": "degraded"}), (200, ok))
+    assert wait_for_health(http) == ok
+
+
+def test_gives_up_with_the_last_reason():
+    http = health_client(httpx.ConnectError("refused"))
+    with pytest.raises(RuntimeError, match="not healthy after 0 s: ConnectError"):
+        wait_for_health(http, timeout=0)

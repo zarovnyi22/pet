@@ -41,6 +41,10 @@ GOALS = {
     "make_vegan": {},
 }
 HTTP_TIMEOUT = 150.0  # the run's own budget is 60 s; a fallback run can take ~40 s of it
+# Right after `make up` the api is still loading the embedding model: wait for /health first,
+# or the first runs fail with a refused connection that says nothing about the pipeline.
+HEALTH_TIMEOUT = 60.0
+HEALTH_POLL = 2.0
 
 
 # --- checks (pure, unit-tested) -----------------------------------------------------------------
@@ -121,6 +125,25 @@ def usage(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def wait_for_health(http: httpx.Client, timeout: float = HEALTH_TIMEOUT) -> dict[str, Any]:
+    """/health once it answers {"status": "ok"}; RuntimeError if it does not within timeout."""
+    deadline = time.monotonic() + timeout
+    last = "no answer"
+    while True:
+        try:
+            resp = http.get("/health")
+            health = resp.json()
+            if resp.status_code == 200 and health.get("status") == "ok":
+                return health
+            last = f"HTTP {resp.status_code} {health}"
+        except (httpx.HTTPError, ValueError) as exc:
+            last = type(exc).__name__
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f"service not healthy after {timeout:g} s: {last}")
+        print(f"waiting for {http.base_url}health: {last}", flush=True)
+        time.sleep(HEALTH_POLL)
+
+
 # --- report -----------------------------------------------------------------------------------
 
 
@@ -176,7 +199,11 @@ def main(base_url: str, n: int, pause: float) -> int:
     total = n * len(GOALS)
     runs: list[dict[str, Any]] = []
     with httpx.Client(base_url=base_url, timeout=HTTP_TIMEOUT) as http:
-        health = http.get("/health").json()
+        try:
+            health = wait_for_health(http)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 2
         print(f"service: {health}", flush=True)
         for i in range(1, n + 1):
             for goal, params in GOALS.items():

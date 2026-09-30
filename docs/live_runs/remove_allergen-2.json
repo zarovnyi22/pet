@@ -4,7 +4,7 @@
       "original": "молоко 2.5%",
       "replacement": "Soy Drink, Unsweetened",
       "grams": 800.0,
-      "rationale": "Replace cow's milk with unsweetened soy drink to remove the milk allergen while maintaining high protein content for proper coagulation and structure.",
+      "rationale": "Replace dairy milk with soy drink to remove milk allergen while maintaining a high protein content suitable for yogurt fermentation.",
       "sources": [
         "spec-soy-drink"
       ],
@@ -12,9 +12,9 @@
     },
     {
       "original": "закваска",
-      "replacement": "Freeze-dried plant-based DVS",
+      "replacement": "Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)",
       "grams": 0.4,
-      "rationale": "Use plant-based DVS culture within its maximum dosage percentage to eliminate milk-derived starter and maintain the dairy-free profile.",
+      "rationale": "Use a plant-based DVS culture within its maximum dosage limit to ensure the starter is entirely dairy-free.",
       "sources": [
         "spec-yogurt-starter"
       ],
@@ -24,8 +24,9 @@
       "original": "закваска",
       "replacement": "Soy Drink, Unsweetened",
       "grams": 9.6,
-      "rationale": "Make up the remaining weight of the starter with the base soy drink.",
+      "rationale": "Make up the remaining mass of the starter ingredient with the base plant drink.",
       "sources": [
+        "spec-yogurt-starter",
         "spec-soy-drink"
       ],
       "confidence": "medium"
@@ -54,8 +55,9 @@
     }
   },
   "warnings": [
-    "Replacing milk with soy drink alters the fermentation substrate profile; yogurt texture and acidification rate may differ from dairy yogurt.",
-    "Plant-based protein coagulation properties differ from dairy casein, which can affect final gel firmness and syneresis."
+    "The substitution introduces soy and removes milk from the allergen list; update packaging labels and allergen matrix accordingly.",
+    "Plant-based yogurt alternatives may exhibit differences in gel firmness and mouthfeel compared to dairy yogurt.",
+    "New allergen: soybeans (from Soy Drink, Unsweetened). Requires written sign-off from Quality and a label update before the first production run (guideline-allergen-policy)."
   ],
   "trace": [
     {
@@ -98,12 +100,12 @@
           }
         ],
         "queries": [
-          "dairy free yogurt fermentation plant based starter cultures",
-          "soy milk yogurt formulation texture stabilization"
+          "dairy free yogurt fermentation plant based starter",
+          "soy oat milk yogurt formulation allergen removal"
         ]
       },
       "message": null,
-      "duration_ms": 1537,
+      "duration_ms": 1908,
       "usage": {
         "provider": "gemini",
         "http_attempts": 1,
@@ -111,7 +113,7 @@
         "output_tokens": 279,
         "reasoning_tokens": 0,
         "total_tokens": 962,
-        "at_ms": 1
+        "at_ms": 2
       }
     },
     {
@@ -204,7 +206,7 @@
       "type": "tool_call",
       "tool": "search_knowledge_base",
       "arguments": {
-        "query": "dairy free yogurt fermentation plant based starter cultures"
+        "query": "dairy free yogurt fermentation plant based starter"
       },
       "result": {
         "chunks": [
@@ -212,19 +214,19 @@
             "doc_id": "spec-yogurt-starter",
             "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
             "chunk_text": "# Yogurt Starter Cultures\n\nYogurt is fermented by *Streptococcus thermophilus* and *Lactobacillus delbrueckii* subsp. *bulgaricus*, often with added *L. acidophilus* or *Bifidobacterium*. The same bacteria can be supplied in forms that differ in allergens and vegan status.\n\n## Forms of starter\n\n| Fo…",
-            "score": 0.7751
+            "score": 0.7499
           },
           {
             "doc_id": "spec-milk-2-5",
             "title": "Milk 2.5% Fat — Ingredient Specification",
             "chunk_text": "milk-free if the starter was grown on dairy media (spec-yogurt-starter).\n- A milk-to-soy or milk-to-oat swap drops protein per 100 g of yogurt; check \"source of protein\" claims.",
-            "score": 0.6428
+            "score": 0.6809
           },
           {
             "doc_id": "spec-yogurt-starter",
             "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
             "chunk_text": "Nutrients per 100 g\n\n| Nutrient | Bulk starter (fermented milk 2.5%) | Freeze-dried plant-based DVS |\n|---|---|---|\n| Energy | 55 kcal | 380 kcal |\n| Protein | 3.0 g | 2.0 g |\n| Fat | 2.5 g | 0.5 g |\n| Carbohydrates | 4.0 g | 90 g (maltodextrin carrier) |\n| of which sugars | 3.6 g | 5.0 g |\n| Max do…",
-            "score": 0.6369
+            "score": 0.6362
           }
         ],
         "nutrients_per_100g": {
@@ -255,7 +257,7 @@
         }
       },
       "message": null,
-      "duration_ms": 41,
+      "duration_ms": 45,
       "usage": null
     },
     {
@@ -264,37 +266,30 @@
       "type": "tool_call",
       "tool": "search_knowledge_base",
       "arguments": {
-        "query": "soy milk yogurt formulation texture stabilization"
+        "query": "soy oat milk yogurt formulation allergen removal"
       },
       "result": {
         "chunks": [
           {
-            "doc_id": "spec-milk-2-5",
-            "title": "Milk 2.5% Fat — Ingredient Specification",
-            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
-            "score": 0.5896
+            "doc_id": "trial-vegan-pancakes",
+            "title": "Trial Report — Vegan Pancakes (Milk, Egg and Butter Replaced)",
+            "chunk_text": "6.8 | 6.9 |\n\nVegan-Oat was \"thinner and gummier\". Vegan-Soy was \"slightly pale\", with no off-flavour noted.\n\n## Conclusion\n\n**Vegan-Soy approved.** It removes **milk and egg** from the allergen list but **adds soy**; the label and allergen matrix must be updated and the change signed off per guideli…",
+            "score": 0.6664
+          },
+          {
+            "doc_id": "guideline-allergen-policy",
+            "title": "Allergen Management Policy for Reformulation",
+            "chunk_text": "update **before** the first production run.\n3. Every substitution must reference an internal specification (doc_id) or a supplier specification that lists allergens. A substitution without a documented allergen status is treated as **low confidence** and cannot go to production.\n4. Check the full fo…",
+            "score": 0.6208
           },
           {
             "doc_id": "spec-milk-2-5",
             "title": "Milk 2.5% Fat — Ingredient Specification",
             "chunk_text": "% of the protein) coagulates at pH 4.6 and forms the yogurt gel. Protein below 2.8% gives a weak set and whey separation.\n- **Mouthfeel:** 2.5% fat gives a medium-creamy texture; below 1.5% fat add 1–2% skimmed milk powder to keep viscosity.\n\n## Typical dosage\n\n| Product | Dosage |\n|---|---|\n| Fruit…",
-            "score": 0.572
-          },
-          {
-            "doc_id": "spec-soy-drink",
-            "title": "Soy Drink, Unsweetened — Ingredient Specification",
-            "chunk_text": "# Soy Drink, Unsweetened\n\n**Supplier grade:** water, hulled soybeans 8%, calcium phosphate, stabiliser gellan gum (E418). No added sugar. UHT, ambient; after opening store at 2–6 °C for up to 4 days.\n\n## Function\n\nThe closest plant-based match to cow's milk in protein content (3.0 g vs 3.3 g per 100…",
-            "score": 0.5059
+            "score": 0.5972
           }
         ],
         "nutrients_per_100g": {
-          "spec-soy-drink": {
-            "kcal": 33.0,
-            "fat_g": 1.8,
-            "carbs_g": 0.7,
-            "sugar_g": 0.5,
-            "protein_g": 3.0
-          },
           "spec-milk-2-5": {
             "kcal": 53.0,
             "fat_g": 2.5,
@@ -305,7 +300,7 @@
         }
       },
       "message": null,
-      "duration_ms": 40,
+      "duration_ms": 45,
       "usage": null
     },
     {
@@ -343,12 +338,11 @@
             "replacement": "Soy Drink, Unsweetened",
             "grams": 800.0,
             "nutrients_source": "spec-soy-drink",
-            "nutrients_column": null,
             "sources": [
               "spec-soy-drink"
             ],
-            "rationale": "Replace cow's milk with unsweetened soy drink to remove the milk allergen while maintaining high protein content for proper coagulation and structure.",
-            "confidence": "medium"
+            "rationale": "Replace dairy milk with soy drink to remove milk allergen while maintaining a high protein content suitable for yogurt fermentation.",
+            "confidence": "high"
           },
           {
             "original": "закваска",
@@ -359,20 +353,20 @@
             "sources": [
               "spec-yogurt-starter"
             ],
-            "rationale": "Use plant-based DVS culture within its maximum dosage percentage to eliminate milk-derived starter and maintain the dairy-free profile.",
-            "confidence": "medium"
+            "rationale": "Use a plant-based DVS culture within its maximum dosage limit to ensure the starter is entirely dairy-free.",
+            "confidence": "high"
           },
           {
             "original": "закваска",
             "replacement": "Soy Drink, Unsweetened",
             "grams": 9.6,
             "nutrients_source": "spec-soy-drink",
-            "nutrients_column": null,
             "sources": [
+              "spec-yogurt-starter",
               "spec-soy-drink"
             ],
-            "rationale": "Make up the remaining weight of the starter with the base soy drink.",
-            "confidence": "medium"
+            "rationale": "Make up the remaining mass of the starter ingredient with the base plant drink.",
+            "confidence": "high"
           }
         ],
         "allergens_before": [
@@ -382,24 +376,35 @@
           "soybeans"
         ],
         "warnings": [
-          "Replacing milk with soy drink alters the fermentation substrate profile; yogurt texture and acidification rate may differ from dairy yogurt.",
-          "Plant-based protein coagulation properties differ from dairy casein, which can affect final gel firmness and syneresis."
+          "The substitution introduces soy and removes milk from the allergen list; update packaging labels and allergen matrix accordingly.",
+          "Plant-based yogurt alternatives may exhibit differences in gel firmness and mouthfeel compared to dairy yogurt."
         ]
       },
       "message": null,
-      "duration_ms": 2462,
+      "duration_ms": 16058,
       "usage": {
         "provider": "gemini",
         "http_attempts": 1,
-        "input_tokens": 3089,
-        "output_tokens": 675,
+        "input_tokens": 2942,
+        "output_tokens": 652,
         "reasoning_tokens": 0,
-        "total_tokens": 3764,
-        "at_ms": 1583
+        "total_tokens": 3594,
+        "at_ms": 1958
       }
     },
     {
       "step": 6,
+      "iteration": 3,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "replacement name 'Freeze-dried plant-based DVS' -> 'Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)', from spec-yogurt-starter",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 7,
       "iteration": 3,
       "type": "tool_call",
       "tool": "calc_nutrition",
@@ -416,7 +421,8 @@
               "protein_g": 2.9
             },
             "nutrients_source": "spec-milk-2-5",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "цукор",
@@ -430,7 +436,8 @@
               "sweetness": 1.0
             },
             "nutrients_source": "spec-sucrose",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "полуниця заморожена",
@@ -443,7 +450,8 @@
               "protein_g": 0.4
             },
             "nutrients_source": "spec-strawberry-frozen",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "закваска",
@@ -456,7 +464,8 @@
               "protein_g": 3.0
             },
             "nutrients_source": "spec-yogurt-starter",
-            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)",
+            "kept": true
           }
         ]
       },
@@ -477,7 +486,7 @@
       "usage": null
     },
     {
-      "step": 7,
+      "step": 8,
       "iteration": 3,
       "type": "tool_call",
       "tool": "calc_nutrition",
@@ -495,7 +504,8 @@
               "sweetness": 1.0
             },
             "nutrients_source": "spec-sucrose",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "полуниця заморожена",
@@ -508,7 +518,8 @@
               "protein_g": 0.4
             },
             "nutrients_source": "spec-strawberry-frozen",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": true
           },
           {
             "name": "Soy Drink, Unsweetened",
@@ -521,10 +532,11 @@
               "protein_g": 3.0
             },
             "nutrients_source": "spec-soy-drink",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": false
           },
           {
-            "name": "Freeze-dried plant-based DVS",
+            "name": "Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)",
             "grams": 0.4,
             "nutrients_per_100g": {
               "kcal": 380.0,
@@ -535,7 +547,8 @@
               "max_dosage_pct": 0.05
             },
             "nutrients_source": "spec-yogurt-starter",
-            "nutrients_column": "Freeze-dried plant-based DVS"
+            "nutrients_column": "Freeze-dried plant-based DVS",
+            "kept": false
           },
           {
             "name": "Soy Drink, Unsweetened",
@@ -548,7 +561,8 @@
               "protein_g": 3.0
             },
             "nutrients_source": "spec-soy-drink",
-            "nutrients_column": null
+            "nutrients_column": null,
+            "kept": false
           }
         ]
       },
@@ -566,6 +580,39 @@
       },
       "message": null,
       "duration_ms": 0,
+      "usage": null
+    },
+    {
+      "step": 9,
+      "iteration": 4,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "confidence of 'молоко 2.5%' -> 'Soy Drink, Unsweetened' lowered from high to medium: no trial report among sources ['spec-soy-drink']",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 10,
+      "iteration": 4,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "confidence of 'закваска' -> 'Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)' lowered from high to medium: no trial report among sources ['spec-yogurt-starter']",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 11,
+      "iteration": 4,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "confidence of 'закваска' -> 'Soy Drink, Unsweetened' lowered from high to medium: no trial report among sources ['spec-yogurt-starter', 'spec-soy-drink']",
+      "duration_ms": null,
       "usage": null
     }
   ]
