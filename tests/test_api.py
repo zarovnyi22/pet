@@ -2,13 +2,14 @@ import json
 from pathlib import Path
 
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, MockTransport, Response
 
 from app.agent.pipeline import ReformulationPipeline
 from app.allergens import parse_allergens_table
 from app.config import get_settings
 from app.ingest import backfill_allergens, parse_markdown
 from app.llm.fake import FakeLLM
+from app.llm.gemini import GeminiClient
 from app.main import app
 from app.routers.ask import NO_DATA_ANSWER
 from tests.conftest import make_client
@@ -184,6 +185,26 @@ async def test_ask_with_invalid_llm_answer_is_502(db_client):
 
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "llm_error"
+
+
+async def test_ask_with_invalid_api_key_is_503_llm_invalid_key(db_client):
+    await db_client.post("/documents", json=SUGAR_GUIDE)
+    llm = GeminiClient("wrong-key", "gemini-test", 5)
+    await llm.aclose()
+    bad_key = '{"error": {"code": 400, "details": [{"reason": "API_KEY_INVALID"}]}}'
+    llm._http = AsyncClient(transport=MockTransport(lambda r: Response(400, text=bad_key)))
+    app.state.llm = llm
+
+    resp = await db_client.post("/ask", json={"question": "How to cut sugar?"})
+    await llm.aclose()
+
+    assert resp.status_code == 503
+    assert resp.json() == {
+        "error": {
+            "code": "llm_invalid_key",
+            "message": "GEMINI_API_KEY is invalid (LLM_PROVIDER=gemini)",
+        }
+    }
 
 
 # --- POST /reformulate ---------------------------------------------------------------------------

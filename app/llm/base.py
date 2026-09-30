@@ -75,26 +75,29 @@ class LLMClient(ABC):
 # Transient provider failures (overload 503, a hung request) are retried once after a pause:
 # live Gemini returned "model is currently experiencing high demand" several times a day, and
 # a second attempt usually succeeded. 429 is not retried: a per-minute quota will not recover
-# in seconds. Inside /reformulate the retry still counts against the run's 60 s budget.
+# in seconds, nor is an invalid key. Inside /reformulate the retry still counts against the
+# run's 60 s budget.
 RETRY_DELAY_SECONDS = 2.0
 
 
 async def post_json(
-    http: httpx.AsyncClient, provider: str, url: str, headers: dict, body: dict
+    http: httpx.AsyncClient, provider: str, key_env: str, url: str, headers: dict, body: dict
 ) -> dict:
-    """POST to a provider API, mapping transport/HTTP failures to LLMError."""
+    """POST to a provider API, mapping transport/HTTP failures to LLMError.
+
+    key_env names the API key variable (as in require_key), for the invalid-key message."""
     try:
-        return await _post_once(http, provider, url, headers, body)
+        return await _post_once(http, provider, key_env, url, headers, body)
     except LLMError as exc:
         if exc.code not in ("llm_unavailable", "llm_timeout"):
             raise
         logger.warning("llm retry", extra={"provider": provider, "reason": exc.code})
         await asyncio.sleep(RETRY_DELAY_SECONDS)
-        return await _post_once(http, provider, url, headers, body)
+        return await _post_once(http, provider, key_env, url, headers, body)
 
 
 async def _post_once(
-    http: httpx.AsyncClient, provider: str, url: str, headers: dict, body: dict
+    http: httpx.AsyncClient, provider: str, key_env: str, url: str, headers: dict, body: dict
 ) -> dict:
     started = time.monotonic()
     try:
@@ -113,6 +116,15 @@ async def _post_once(
             "duration_ms": int((time.monotonic() - started) * 1000),
         },
     )
+    if resp.status_code == 401 or (resp.status_code == 400 and "API_KEY_INVALID" in resp.text):
+        # Groq: 401 invalid_api_key; Gemini: 400 with reason API_KEY_INVALID. A configuration
+        # problem, like a missing key: 503 with the variable to fix, not a provider failure.
+        # The provider's body is not echoed: it adds nothing and may quote the key.
+        raise LLMError(
+            f"{key_env} is invalid (LLM_PROVIDER={provider})",
+            code="llm_invalid_key",
+            status_code=503,
+        )
     if resp.status_code == 429:
         raise LLMError(
             f"{provider} rate limit or quota exceeded", code="llm_rate_limited", status_code=503

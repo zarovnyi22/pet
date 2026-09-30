@@ -2,7 +2,9 @@ import httpx
 import pytest
 
 from app.llm import base
-from app.llm.base import LLMError, post_json
+from app.llm.base import LLMError, Message, post_json
+from app.llm.gemini import GeminiClient
+from app.llm.groq import GroqClient
 
 
 @pytest.fixture(autouse=True)
@@ -13,7 +15,7 @@ def no_retry_pause(monkeypatch):
 async def post_with_status(status: int, body: str = "{}") -> dict:
     transport = httpx.MockTransport(lambda request: httpx.Response(status, text=body))
     async with httpx.AsyncClient(transport=transport) as http:
-        return await post_json(http, "gemini", "https://llm.test", {}, {})
+        return await post_json(http, "gemini", "GEMINI_API_KEY", "https://llm.test", {}, {})
 
 
 async def post_sequence(*outcomes) -> tuple[dict | LLMError, int]:
@@ -29,7 +31,9 @@ async def post_sequence(*outcomes) -> tuple[dict | LLMError, int]:
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         try:
-            return await post_json(http, "gemini", "https://llm.test", {}, {}), len(calls)
+            return await post_json(
+                http, "gemini", "GEMINI_API_KEY", "https://llm.test", {}, {}
+            ), len(calls)
         except LLMError as exc:
             return exc, len(calls)
 
@@ -67,3 +71,42 @@ async def test_second_transient_failure_gives_up():
 async def test_rate_limit_is_not_retried():
     result, calls = await post_sequence(429, 200)
     assert (result.code, calls) == ("llm_rate_limited", 1)
+
+
+# What each provider answers to a wrong key (bodies trimmed from real responses).
+GEMINI_BAD_KEY = (
+    400,
+    '{"error": {"code": 400, "message": "API key not valid. Please pass a valid API key.", '
+    '"status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}}',
+)
+GROQ_BAD_KEY = (
+    401,
+    '{"error": {"message": "Invalid API Key", "type": "invalid_request_error", '
+    '"code": "invalid_api_key"}}',
+)
+
+
+@pytest.mark.parametrize(
+    ("client", "answer", "env_var"),
+    [
+        (GeminiClient("wrong-key", "gemini-test", 5), GEMINI_BAD_KEY, "GEMINI_API_KEY"),
+        (GroqClient("wrong-key", "groq-test", 5), GROQ_BAD_KEY, "GROQ_API_KEY"),
+    ],
+    ids=["gemini", "groq"],
+)
+async def test_invalid_key_is_503_llm_invalid_key_and_not_retried(client, answer, env_var):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(answer[0], text=answer[1])
+
+    await client.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(LLMError) as err:
+        await client.complete([Message(role="user", content="hi")])
+    await client.aclose()
+
+    assert (err.value.code, err.value.status_code) == ("llm_invalid_key", 503)
+    assert err.value.message == f"{env_var} is invalid (LLM_PROVIDER={client.provider})"
+    assert len(requests) == 1  # a wrong key does not fix itself: no retry

@@ -21,6 +21,7 @@ URL = "https://api.groq.com/openai/v1/chat/completions"
 
 class GroqClient(LLMClient):
     provider = "groq"
+    key_env = "GROQ_API_KEY"
 
     def __init__(self, api_key: str, model: str, timeout: float) -> None:
         self._api_key = api_key
@@ -61,9 +62,14 @@ class GroqClient(LLMClient):
         }
 
     async def _chat(self, body: dict[str, Any]) -> LLMResponse:
-        require_key(self.provider, "GROQ_API_KEY", self._api_key)
+        require_key(self.provider, self.key_env, self._api_key)
         data = await post_json(
-            self._http, self.provider, URL, {"Authorization": f"Bearer {self._api_key}"}, body
+            self._http,
+            self.provider,
+            self.key_env,
+            URL,
+            {"Authorization": f"Bearer {self._api_key}"},
+            body,
         )
         try:
             msg = data["choices"][0]["message"]

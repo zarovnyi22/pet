@@ -21,6 +21,7 @@ BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 class GeminiClient(LLMClient):
     provider = "gemini"
+    key_env = "GEMINI_API_KEY"
 
     def __init__(self, api_key: str, model: str, timeout: float) -> None:
         self._api_key = api_key
@@ -61,10 +62,11 @@ class GeminiClient(LLMClient):
         return body
 
     async def _generate(self, body: dict[str, Any]) -> LLMResponse:
-        require_key(self.provider, "GEMINI_API_KEY", self._api_key)
+        require_key(self.provider, self.key_env, self._api_key)
         data = await post_json(
             self._http,
             self.provider,
+            self.key_env,
             f"{BASE_URL}/{self._model}:generateContent",
             {"x-goog-api-key": self._api_key},
             body,

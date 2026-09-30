@@ -114,6 +114,10 @@ curl -X POST localhost:8000/reformulate -H 'content-type: application/json' \
 
 Помилки завжди в одному форматі: `{"error": {"code": "...", "message": "..."}}`; помилки агента
 (`agent_timeout` 504, `agent_invalid_output` 502, `llm_unavailable` 503) додають поруч `trace`.
+Помилки LLM: `llm_not_configured` 503 (ключ не задано), `llm_invalid_key` 503 (ключ
+неправильний: «GEMINI_API_KEY is invalid»; без повтору), `llm_rate_limited` 503 (квота),
+`llm_unavailable` 503 (перевантаження, один повтор), `llm_timeout` 504, `llm_error` 502 (інша
+відповідь провайдера).
 
 ## Як працює агент — на прикладі trace
 
