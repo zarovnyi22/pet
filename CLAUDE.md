@@ -101,10 +101,11 @@ reformulation-assistant/
 ├── migrations/              # 001_init.sql, 002_nutrients.sql, 003_allergens.sql, 004_fulltext.sql
 ├── k8s/                     # kind: namespace, postgres StatefulSet+Service, api Deployment+Service,
 │                            #   ingest Job, secret.example (make k8s-up / k8s-ingest / k8s-forward)
-├── eval/                    # recall@5 для /ask (make eval), токени запусків (make tokens); змонтована в api
+├── eval/                    # recall@5 (base / exact_terms, vector vs hybrid; make eval), токени (make tokens)
 ├── scripts/live_runs.py     # живі прогони /reformulate 3×5 з перевірками (make live-runs, сервіс live)
 ├── docs/                    # SPEC.md, live_runs.md + live_runs/*.json (сирі відповіді прогонів)
 ├── tests/
+├── .github/workflows/ci.yml # jobs: ruff + pytest, docker build, k8s manifests
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -423,6 +424,10 @@ CREATE TABLE reformulation_runs (
 | 3 | Гібридний пошук: `tsvector` + Reciprocal Rank Fusion | [x] |
 | 4 | Оцінка RAG: `eval/questions.jsonl` + recall@5 (пункт 3 фідбеку) | [x] |
 | 5 | Хмара: акаунта з карткою немає → абзац у README «як би я деплоїв» | [x] |
+
+**Усі бонуси закриті (30.09.2026).** Докази — у README: розділи «Kubernetes (kind)», «Як би я
+деплоїв у хмару», «Гібридний пошук» (таблиця recall@5 трьох стадій), «Живі прогони»; CI —
+jobs `ruff + pytest`, `docker build`, `k8s manifests`.
 
 ### Бонус 5 — план деплою в хмару (лише текст)
 
