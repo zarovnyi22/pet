@@ -64,12 +64,21 @@ RRF_K = 60  # the constant from the RRF paper: dampens the weight of the very fi
 # "e418". So a chunk scores the sum of ln(N / chunks with the lexeme) over the lexemes it
 # contains (BM25 without term frequency), and ts_rank_cd breaks ties. ts_stat reads every
 # tsvector per query: fine for a corpus of ~100 chunks; at scale, keep lexeme counts in a table.
+#
+# Only rare lexemes take part. With every lexeme, the OR matched a dozen chunks for any question
+# (common words: "ingredient", "contain", "kcal") and overlapped the vector list; RRF then
+# ranked chunks sitting in both lists at middling ranks (1/65 + 1/68) above the one chunk the
+# full-text search put first (1/61): E418 and "380 kcal" ended 8th and 11th, and a trial ID
+# the vector search had found was pushed out. A lexeme in more than a tenth of the chunks is a
+# stop word for this corpus; the result was the same for any cut-off from 5% to 20%.
+RARE_TERM_MAX_SHARE = 0.10
 FULLTEXT_SQL = """
 WITH terms AS (
   SELECT DISTINCT unnest(tsvector_to_array(to_tsvector('english', $1))) AS word
 ), stats AS (
   SELECT s.word, ln((SELECT count(*) FROM chunks)::float8 / s.ndoc) AS idf
   FROM ts_stat('SELECT tsv FROM chunks') AS s JOIN terms USING (word)
+  WHERE s.ndoc <= $3::float8 * (SELECT count(*) FROM chunks)
 ), any_term AS (
   SELECT replace(plainto_tsquery('english', $1)::text, ' & ', ' | ')::tsquery AS q
 )
@@ -102,7 +111,7 @@ async def vector_ranking(pool: asyncpg.Pool, vector: str, limit: int) -> list[in
 
 
 async def fulltext_ranking(pool: asyncpg.Pool, query: str, limit: int) -> list[int]:
-    rows = await pool.fetch(FULLTEXT_SQL, query, limit)
+    rows = await pool.fetch(FULLTEXT_SQL, query, limit, RARE_TERM_MAX_SHARE)
     return [r["id"] for r in rows]
 
 

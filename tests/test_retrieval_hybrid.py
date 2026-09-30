@@ -78,3 +78,10 @@ async def test_hybrid_off_is_vector_search_as_before(corpus):
     assert all(s.matched_by == ["vector"] for s in sources)
     scores = [s.score for s in sources]
     assert scores == sorted(scores, reverse=True)  # plain cosine order, as before
+
+
+async def test_common_words_alone_propose_nothing(corpus):
+    # In most chunks of these specs: a stop word for this corpus, so no full-text proposal
+    # that would only echo the vector search.
+    pool, _ = corpus
+    assert await fulltext_ranking(pool, "ingredient per 100 g", 20) == []

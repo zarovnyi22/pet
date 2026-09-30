@@ -3,7 +3,8 @@
 A question is a hit when its expected_doc_id is among the documents of the top 5 chunks,
 the same search and top_k /ask uses. Questions carry a `set`: "base" (general questions) and
 "exact_terms" (the answer hinges on an exact term: E-code, trial ID, a number from a table);
-recall is reported per set. Runs inside the api container, which has the embedding
+recall is reported per set, for vector search alone and for hybrid (vector + full-text,
+fused by RRF). Runs inside the api container, which has the embedding
 model, the database and the LLM key (./eval is mounted there, like ./data):
 
     make eval             # en and uk as is: search only, no LLM calls
@@ -38,21 +39,31 @@ async def main(translate: bool) -> int:
         embedder = Embedder(settings.embedding_model)
         llm = get_llm_client(settings) if translate else None
 
-        async def hits(queries: list[str]) -> list[bool]:
+        async def hits(queries: list[str], hybrid: bool) -> list[bool]:
             found = []
             for query, q in zip(queries, questions, strict=True):
-                docs = {s.doc_id for s in await search(pool, embedder, query, TOP_K)}
-                found.append(q["expected_doc_id"] in docs)
+                sources = await search(pool, embedder, query, TOP_K, hybrid=hybrid)
+                found.append(q["expected_doc_id"] in {s.doc_id for s in sources})
             return found
 
-        rows = {
-            "en": await hits([q["question_en"] for q in questions]),
-            "uk (as is)": await hits([q["question_uk"] for q in questions]),
+        # Both modes on the same queries: vector = HYBRID_SEARCH=false, hybrid = the default.
+        queries = {
+            "en": [q["question_en"] for q in questions],
+            "uk (as is)": [q["question_uk"] for q in questions],
         }
         if llm is not None:
-            translated = [await to_search_query(llm, q["question_uk"]) for q in questions]
+            # Translated once, searched in both modes: 1 LLM call per question, as in /ask.
+            queries["uk → en (LLM)"] = [
+                await to_search_query(llm, q["question_uk"]) for q in questions
+            ]
             await llm.aclose()
-            rows["uk → en (LLM)"] = await hits(translated)
+        rows = {
+            f"{label} · {mode}": await hits(texts, hybrid=mode == "hybrid")
+            for label, texts in queries.items()
+            for mode in ("vector", "hybrid")
+        }
+        if llm is not None:
+            translated = queries["uk → en (LLM)"]
             print("Translations:")
             for q, query in zip(questions, translated, strict=True):
                 print(f"  {q['expected_doc_id']}: {query}")
