@@ -1,10 +1,10 @@
 import json
 import logging
 import time
-from typing import Any
+from typing import Annotated, Any
 
 import asyncpg
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Body, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.agent.common import AgentError
@@ -22,8 +22,37 @@ AGENT_ERRORS = {
 }
 
 
+YOGURT = {
+    "product_name": "Полуничний йогурт 2.5%",
+    "ingredients": [
+        {"name": "молоко 2.5%", "grams": 800},
+        {"name": "цукор", "grams": 90},
+        {"name": "полуниця заморожена", "grams": 100},
+        {"name": "закваска", "grams": 10},
+    ],
+}
+REFORMULATE_EXAMPLES = {
+    "remove_allergen": {
+        "summary": "Demo yogurt: remove milk",
+        "value": YOGURT | {"goal": "remove_allergen", "goal_params": {"allergen": "milk"}},
+    },
+    "reduce_sugar": {
+        "summary": "Demo yogurt: 30% less sugar",
+        "value": YOGURT | {"goal": "reduce_sugar", "goal_params": {"percent": 30}},
+    },
+    "make_vegan": {
+        "summary": "Demo yogurt: vegan",
+        "value": YOGURT | {"goal": "make_vegan", "goal_params": {}},
+    },
+}
+
+
 @router.post("/reformulate", response_model=ReformulateOut, responses=AGENT_ERRORS)
-async def reformulate(body: ReformulateIn, request: Request, response: Response) -> Any:
+async def reformulate(
+    body: Annotated[ReformulateIn, Body(openapi_examples=REFORMULATE_EXAMPLES)],
+    request: Request,
+    response: Response,
+) -> Any:
     state = request.app.state
     settings = get_settings()
     # The fixed pipeline, not the free AgentLoop: see app/agent/pipeline.py and the README.

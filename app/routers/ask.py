@@ -1,7 +1,7 @@
 import json
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
 from app.errors import AppError
@@ -23,7 +23,9 @@ Reply with a single JSON object and nothing else:
 - found=true: answer concisely, keep concrete numbers (dosages, grams, percentages) from the \
 sources, and put the doc_id in square brackets after each claim, e.g. [spec-egg].
 - cited_doc_ids lists every doc_id you used.
-- Write the answer in the language of the question (sources are in English)."""
+- Write the answer in the language of the question (sources are in English), in its standard \
+literary form: do not mix languages or use words from another language (e.g. no Russian words \
+in a Ukrainian answer)."""
 
 TRANSLATE_PROMPT = """Translate the user's question into a short English search query for a \
 food R&D knowledge base. Keep ingredient names, numbers and units. Return only the query: \
@@ -85,8 +87,24 @@ def select_sources(sources: list[Source], cited_doc_ids: list[str]) -> list[Sour
     return [s for s in sources if s.doc_id in cited] or sources
 
 
+# Swagger (/docs) offers these in a dropdown: an English question is searched as is, a
+# Ukrainian one is translated for the search first and answered in Ukrainian.
+ASK_EXAMPLES = {
+    "english": {
+        "summary": "English question",
+        "value": {"question": "What can replace eggs in a sponge cake and at what dosage?"},
+    },
+    "ukrainian": {
+        "summary": "Українське питання (переклад для пошуку)",
+        "value": {"question": "Чим замінити яйце в бісквіті?", "top_k": 5},
+    },
+}
+
+
 @router.post("/ask", response_model=AskOut)
-async def ask(body: AskIn, request: Request) -> AskOut:
+async def ask(
+    body: Annotated[AskIn, Body(openapi_examples=ASK_EXAMPLES)], request: Request
+) -> AskOut:
     state = request.app.state
     if not await has_chunks(state.pool):
         raise AppError(409, "empty_knowledge_base", "No documents are indexed yet.")
