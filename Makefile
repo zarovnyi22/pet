@@ -34,7 +34,7 @@ ingest:  ## load data/corpus/ into the knowledge base (re-ingest replaces, never
 eval:    ## recall@5 of /ask search, en vs uk questions (search only, no LLM calls)
 	docker compose exec api python -m eval.recall
 
-eval-translate:  ## same + uk questions translated as /ask does (live LLM: 1 call per question)
+eval-translate:  ## same + uk questions translated as /ask does (live LLM: 1 call per question, 18)
 	docker compose exec api python -m eval.recall --translate
 
 tokens:  ## token usage of recent /reformulate runs (make tokens ARGS="--last 3")

@@ -1,7 +1,9 @@
 """recall@5 of the /ask search on eval/questions.jsonl, English vs Ukrainian.
 
 A question is a hit when its expected_doc_id is among the documents of the top 5 chunks,
-the same search and top_k /ask uses. Runs inside the api container, which has the embedding
+the same search and top_k /ask uses. Questions carry a `set`: "base" (general questions) and
+"exact_terms" (the answer hinges on an exact term: E-code, trial ID, a number from a table);
+recall is reported per set. Runs inside the api container, which has the embedding
 model, the database and the LLM key (./eval is mounted there, like ./data):
 
     make eval             # en and uk as is: search only, no LLM calls
@@ -58,16 +60,35 @@ async def main(translate: bool) -> int:
     finally:
         await pool.close()
 
-    n = len(questions)
-    print(f"| Questions ({n}) | recall@{TOP_K} |")
-    print("|---|---|")
-    for label, found in rows.items():
-        print(f"| {label} | {sum(found)}/{n} ({sum(found) / n:.0%}) |")
-    print()
-    for label, found in rows.items():
-        missed = [q["expected_doc_id"] for q, ok in zip(questions, found, strict=True) if not ok]
-        print(f"missed, {label}: {', '.join(missed) or '-'}")
+    print(report(questions, rows))
     return 0
+
+
+def report(questions: list[dict], rows: dict[str, list[bool]]) -> str:
+    """recall@5 per question set ("base", "exact_terms", ...) and per query language, plus
+    the questions each row missed."""
+    sets = list(dict.fromkeys(q.get("set", "base") for q in questions))
+    header = "| Queries | " + " | ".join(
+        f"{name} ({sum(q.get('set', 'base') == name for q in questions)})" for name in sets
+    )
+    lines = [header + " |", "|---" * (len(sets) + 1) + "|"]
+    for label, found in rows.items():
+        cells = []
+        for name in sets:
+            mine = [
+                ok for q, ok in zip(questions, found, strict=True) if q.get("set", "base") == name
+            ]
+            cells.append(f"{sum(mine)}/{len(mine)} ({sum(mine) / len(mine):.0%})")
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    lines.append("")
+    for label, found in rows.items():
+        missed = [
+            f"{q['expected_doc_id']} [{q.get('set', 'base')}]"
+            for q, ok in zip(questions, found, strict=True)
+            if not ok
+        ]
+        lines.append(f"missed, {label}: {', '.join(missed) or '-'}")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":
