@@ -132,3 +132,43 @@ def test_groq_reasoning_effort_defaults_to_low_and_empty_turns_it_off():
     assert default._reasoning_effort == "low"
     off = Settings(_env_file=None, llm_provider="groq", groq_reasoning_effort="")
     assert get_llm_client(off)._reasoning_effort == ""
+
+
+# --- the fallback runs out too (live: Groq's 8K tokens a minute, run 3 of a live batch) -------
+
+
+class RateLimitedGroq(FailingLLM):
+    provider = "groq"
+
+
+def cooling_down(primary, backup) -> FallbackLLMClient:
+    llm = FallbackLLMClient(primary, backup)
+    llm._primary_down_until = time.monotonic() + 60  # the primary failed a moment ago
+    return llm
+
+
+async def test_rate_limited_fallback_during_cooldown_tries_the_primary_once():
+    primary, backup = FakeLLM(["from gemini", "again gemini"]), RateLimitedGroq("llm_rate_limited")
+    llm = cooling_down(primary, backup)
+
+    assert await llm.complete(HI) == "from gemini"
+    assert len(backup.calls) == 1 and len(primary.calls) == 1
+    await llm.complete(HI)  # it answered: the cooldown is over, no detour through the fallback
+    assert len(backup.calls) == 1 and len(primary.calls) == 2
+
+
+async def test_both_exhausted_is_one_clear_error():
+    primary, backup = FailingLLM("llm_unavailable"), RateLimitedGroq("llm_rate_limited")
+    with pytest.raises(LLMError) as err:
+        await cooling_down(primary, backup).complete(HI)
+
+    assert (err.value.code, err.value.status_code) == ("llm_rate_limited", 503)
+    assert err.value.message == "groq rate limited and gemini still failing (llm_unavailable)"
+    assert len(primary.calls) == 1  # one try, not a loop
+
+
+async def test_other_fallback_errors_during_cooldown_are_not_retried_on_the_primary():
+    primary, backup = FakeLLM(["never"]), RateLimitedGroq("llm_invalid_key")
+    with pytest.raises(LLMError) as err:
+        await cooling_down(primary, backup).complete(HI)
+    assert err.value.code == "llm_invalid_key" and primary.calls == []
