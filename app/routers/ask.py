@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, BeforeValidator, ValidationError
 
 from app.errors import AppError
-from app.llm.base import LLMError, Message
+from app.llm.base import LLMClient, LLMError, Message
 from app.retrieval import has_chunks, search
 from app.schemas import AskIn, AskOut, Source
 
@@ -22,7 +22,12 @@ Reply with a single JSON object and nothing else:
 - found=false if the sources do not contain the answer; then answer="" and cited_doc_ids=[].
 - found=true: answer concisely, keep concrete numbers (dosages, grams, percentages) from the \
 sources, and put the doc_id in square brackets after each claim, e.g. [spec-egg].
-- cited_doc_ids lists every doc_id you used."""
+- cited_doc_ids lists every doc_id you used.
+- Write the answer in the language of the question (sources are in English)."""
+
+TRANSLATE_PROMPT = """Translate the user's question into a short English search query for a \
+food R&D knowledge base. Keep ingredient names, numbers and units. Return only the query: \
+no quotes, no explanations."""
 
 
 def _loose_id_list(value: Any) -> Any:
@@ -36,6 +41,20 @@ class LLMAnswer(BaseModel):
     found: bool
     answer: str = ""
     cited_doc_ids: Annotated[list[str], BeforeValidator(_loose_id_list)] = []
+
+
+async def to_search_query(llm: LLMClient, question: str) -> str:
+    """The question as an English search query: the corpus and all-MiniLM-L6-v2 are English,
+    so an untranslated Ukrainian question barely matches anything. One LLM call, and only
+    when the question has non-ASCII letters; an English question is searched as is."""
+    if not any(ch.isalpha() and not ch.isascii() for ch in question):
+        return question
+    messages = [
+        Message(role="system", content=TRANSLATE_PROMPT),
+        Message(role="user", content=question),
+    ]
+    query = (await llm.complete(messages)).strip().strip('"').strip()
+    return query or question
 
 
 def build_prompt(question: str, sources: list[Source]) -> list[Message]:
@@ -72,7 +91,9 @@ async def ask(body: AskIn, request: Request) -> AskOut:
     if not await has_chunks(state.pool):
         raise AppError(409, "empty_knowledge_base", "No documents are indexed yet.")
 
-    sources = await search(state.pool, state.embedder, body.question, body.top_k)
+    query = await to_search_query(state.llm, body.question)
+    sources = await search(state.pool, state.embedder, query, body.top_k)
+    # The answer sees the original question, so it replies in the asker's language.
     raw = await state.llm.complete(build_prompt(body.question, sources), json_mode=True)
     result = parse_answer(raw)
 

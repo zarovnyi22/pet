@@ -95,6 +95,7 @@ reformulation-assistant/
 │   └── ingest.py            # CLI для папки з корпусом
 ├── data/corpus/             # 23 markdown-документи
 ├── migrations/              # 001_init.sql, 002_nutrients.sql, 003_allergens.sql
+├── eval/                    # questions.jsonl + recall.py (make eval), змонтована в api
 ├── tests/
 ├── Dockerfile
 ├── docker-compose.yml
@@ -290,7 +291,7 @@ CREATE TABLE reformulation_runs (
 
 **Готово, коли:** з неправильним ключем `/ask` повертає 503 `llm_invalid_key`; тест зелений.
 
-### [ ] 3. Українські питання в `/ask` не знаходять документів
+### [x] 3. Українські питання в `/ask` не знаходять документів
 
 **Проблема.** Корпус і `all-MiniLM-L6-v2` англомовні. Пайплайн перекладає запити (через
 план), а `/ask` шукає за питанням як є: за даними ПМ на 8 контрольних питаннях англійська

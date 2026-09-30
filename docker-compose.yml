@@ -32,6 +32,9 @@ services:
       # Corpus for the ingest CLI (docker compose exec api python -m app.ingest data/corpus/).
       # Mounted, not baked in: editing a document doesn't need an image rebuild.
       - ./data:/app/data:ro
+      # Retrieval eval (make eval): a measurement tool, not part of the service, so it is
+      # mounted like the corpus instead of being baked into the runtime image.
+      - ./eval:/app/eval:ro
     ports:
       - "8000:8000"
     depends_on:

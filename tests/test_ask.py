@@ -3,8 +3,12 @@ import json
 import pytest
 
 from app.llm.base import LLMError
-from app.routers.ask import parse_answer, select_sources
+from app.llm.fake import FakeLLM
+from app.main import app
+from app.routers import ask as ask_mod
+from app.routers.ask import parse_answer, select_sources, to_search_query
 from app.schemas import Source
+from tests.conftest import make_client
 
 
 def src(doc_id: str) -> Source:
@@ -44,3 +48,54 @@ def test_json_in_code_fence_is_accepted():
 def test_non_json_answer_is_llm_error():
     with pytest.raises(LLMError):
         parse_answer("Sure! Here is the answer: eggs.")
+
+
+# --- non-English questions are searched in English ------------------------------------------
+
+
+@pytest.fixture
+def searched(monkeypatch):
+    """/ask without a database: records what it searched for, returns one aquafaba chunk."""
+    queries = []
+
+    async def search(pool, embedder, query, top_k):
+        queries.append(query)
+        return [src("spec-aquafaba")]
+
+    async def has_chunks(pool):
+        return True
+
+    monkeypatch.setattr(ask_mod, "search", search)
+    monkeypatch.setattr(ask_mod, "has_chunks", has_chunks)
+    app.state.pool = app.state.embedder = None
+    return queries
+
+
+ANSWER = json.dumps({"found": True, "answer": "45 г аквафаби [spec-aquafaba]", "cited_doc_ids": []})
+
+
+async def test_ukrainian_question_is_searched_by_its_translation(searched):
+    question = "Чим замінити яйце в бісквіті?"
+    app.state.llm = llm = FakeLLM(['"egg replacement in sponge cake"', ANSWER])
+    async with make_client() as client:
+        resp = await client.post("/ask", json={"question": question})
+
+    assert resp.status_code == 200
+    assert searched == ["egg replacement in sponge cake"]  # quotes stripped
+    assert llm.calls[0][-1].content == question  # the translation request
+    assert llm.calls[1][-1].content.endswith(f"Question: {question}")  # answer: the original
+
+
+async def test_english_question_is_searched_as_is_without_a_translation_call(searched):
+    question = "What replaces egg in a sponge cake?"
+    app.state.llm = llm = FakeLLM([ANSWER])
+    async with make_client() as client:
+        resp = await client.post("/ask", json={"question": question})
+
+    assert resp.status_code == 200
+    assert searched == [question]
+    assert len(llm.calls) == 1  # the answer only
+
+
+async def test_to_search_query_keeps_the_question_if_the_translation_is_empty():
+    assert await to_search_query(FakeLLM(["  "]), "Що таке аквафаба?") == "Що таке аквафаба?"
