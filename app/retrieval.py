@@ -6,6 +6,7 @@ from typing import Any
 
 import asyncpg
 
+from app.config import get_settings
 from app.embeddings import Embedder
 from app.ingest import to_pgvector
 from app.schemas import Source
@@ -53,24 +54,97 @@ async def spec_catalog(pool: asyncpg.Pool) -> list[tuple[str, str]]:
     return [(r["doc_id"], r["title"]) for r in rows]
 
 
-async def search(pool: asyncpg.Pool, embedder: Embedder, query: str, top_k: int) -> list[Source]:
-    [vector] = await asyncio.to_thread(embedder.embed, [query])
+# Hybrid search: each side proposes this many chunks, Reciprocal Rank Fusion picks top_k.
+CANDIDATES = 20
+RRF_K = 60  # the constant from the RRF paper: dampens the weight of the very first ranks
+# The question's lexemes (stemmed, stop words dropped). OR, not AND: plainto_tsquery /
+# websearch_to_tsquery need every word of a long question in one chunk and usually match
+# nothing. But an OR ranked by ts_rank_cd alone has no IDF: for "Which of our ingredients
+# contains E418?" chunks full of "ingredient"/"contain" beat the one chunk with the rare
+# "e418". So a chunk scores the sum of ln(N / chunks with the lexeme) over the lexemes it
+# contains (BM25 without term frequency), and ts_rank_cd breaks ties. ts_stat reads every
+# tsvector per query: fine for a corpus of ~100 chunks; at scale, keep lexeme counts in a table.
+FULLTEXT_SQL = """
+WITH terms AS (
+  SELECT DISTINCT unnest(tsvector_to_array(to_tsvector('english', $1))) AS word
+), stats AS (
+  SELECT s.word, ln((SELECT count(*) FROM chunks)::float8 / s.ndoc) AS idf
+  FROM ts_stat('SELECT tsv FROM chunks') AS s JOIN terms USING (word)
+), any_term AS (
+  SELECT replace(plainto_tsquery('english', $1)::text, ' & ', ' | ')::tsquery AS q
+)
+SELECT c.id
+FROM chunks c
+JOIN stats ON c.tsv @@ quote_literal(stats.word)::tsquery
+CROSS JOIN any_term
+GROUP BY c.id, c.tsv, any_term.q
+ORDER BY sum(stats.idf) DESC, ts_rank_cd(c.tsv, any_term.q) DESC, c.id
+LIMIT $2
+"""
+
+
+def rrf(rankings: list[list[int]], k: int = RRF_K) -> list[tuple[int, float]]:
+    """Reciprocal Rank Fusion: sum of 1 / (k + rank) over the rankings an id appears in.
+    Ties keep first-seen order (vector ranking first)."""
+    scores: dict[int, float] = {}
+    for ranking in rankings:
+        for rank, item in enumerate(ranking, start=1):
+            scores[item] = scores.get(item, 0.0) + 1 / (k + rank)
+    return sorted(scores.items(), key=lambda pair: -pair[1])  # sorted() is stable
+
+
+async def vector_ranking(pool: asyncpg.Pool, vector: str, limit: int) -> list[int]:
     # `<=>` is cosine distance, the operator the hnsw index (vector_cosine_ops) serves.
-    # Vectors are normalized, so score = 1 - distance is cosine similarity in [-1, 1].
+    rows = await pool.fetch(
+        "SELECT id FROM chunks ORDER BY embedding <=> $1::vector LIMIT $2", vector, limit
+    )
+    return [r["id"] for r in rows]
+
+
+async def fulltext_ranking(pool: asyncpg.Pool, query: str, limit: int) -> list[int]:
+    rows = await pool.fetch(FULLTEXT_SQL, query, limit)
+    return [r["id"] for r in rows]
+
+
+async def search(
+    pool: asyncpg.Pool,
+    embedder: Embedder,
+    query: str,
+    top_k: int,
+    *,
+    hybrid: bool | None = None,
+) -> list[Source]:
+    """Top chunks for the query: vector search, plus full-text search fused by RRF when
+    HYBRID_SEARCH is on (default). Shared by /ask and the agent's knowledge-base tool."""
+    hybrid = get_settings().hybrid_search if hybrid is None else hybrid
+    [embedding] = await asyncio.to_thread(embedder.embed, [query])
+    vector = to_pgvector(embedding)
+    by_vector = await vector_ranking(pool, vector, CANDIDATES if hybrid else top_k)
+    by_text = await fulltext_ranking(pool, query, CANDIDATES) if hybrid else []
+    chosen = [item for item, _ in rrf([by_vector, by_text])][:top_k]
+
+    # Vectors are normalized, so 1 - cosine distance is cosine similarity in [-1, 1].
     rows = await pool.fetch(
         """
-        SELECT c.doc_id, d.title, c.text, 1 - (c.embedding <=> $1::vector) AS score
-        FROM chunks c
-        JOIN documents d USING (doc_id)
-        ORDER BY c.embedding <=> $1::vector
-        LIMIT $2
+        SELECT c.id, c.doc_id, d.title, c.text, 1 - (c.embedding <=> $1::vector) AS score
+        FROM chunks c JOIN documents d USING (doc_id)
+        WHERE c.id = ANY($2::bigint[])
         """,
-        to_pgvector(vector),
-        top_k,
+        vector,
+        chosen,
     )
+    by_id = {r["id"]: r for r in rows}
+    in_vector, in_text = set(by_vector), set(by_text)
     return [
         Source(
-            doc_id=r["doc_id"], title=r["title"], chunk_text=r["text"], score=round(r["score"], 4)
+            doc_id=by_id[i]["doc_id"],
+            title=by_id[i]["title"],
+            chunk_text=by_id[i]["text"],
+            score=round(by_id[i]["score"], 4),
+            matched_by=[
+                name for name, found in (("vector", in_vector), ("fulltext", in_text)) if i in found
+            ],
         )
-        for r in rows
+        for i in chosen
+        if i in by_id
     ]

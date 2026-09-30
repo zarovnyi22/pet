@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     chunk_size_tokens: int = 200
     chunk_overlap_tokens: int = 40
+    # Vector + full-text search fused by Reciprocal Rank Fusion; false = vector search only.
+    hybrid_search: bool = True
     agent_timeout_seconds: int = 60
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 

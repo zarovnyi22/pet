@@ -40,7 +40,12 @@ class Source(BaseModel):
     doc_id: str
     title: str
     chunk_text: str
+    # Cosine similarity of the chunk to the query, for every chunk, also one found only by
+    # full-text search (then it is low: found by the term, not by meaning). Results are ordered
+    # by Reciprocal Rank Fusion, not by this score.
     score: float
+    # Which search found it: ["vector"], ["fulltext"] or both.
+    matched_by: list[Literal["vector", "fulltext"]] = []
 
 
 class AskOut(BaseModel):
