@@ -1,0 +1,579 @@
+{
+  "substitutions": [
+    {
+      "original": "молоко 2.5%",
+      "replacement": "Soy Drink, Unsweetened",
+      "grams": 800.0,
+      "rationale": "Replace dairy milk with soy drink to make the product vegan, matching protein content well.",
+      "sources": [
+        "spec-milk-2-5",
+        "spec-soy-drink"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "original": "закваска",
+      "replacement": "Freeze-dried plant-based DVS",
+      "grams": 0.4,
+      "rationale": "Use plant-based DVS culture within the maximum dosage limit to maintain vegan status.",
+      "sources": [
+        "spec-yogurt-starter"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "original": "закваска",
+      "replacement": "Soy Drink, Unsweetened",
+      "grams": 9.6,
+      "rationale": "Make up the remaining weight of the starter with the base soy drink.",
+      "sources": [
+        "spec-yogurt-starter",
+        "spec-soy-drink"
+      ],
+      "confidence": "medium"
+    }
+  ],
+  "allergens_before": [
+    "milk"
+  ],
+  "allergens_after": [
+    "soybeans"
+  ],
+  "nutrition_per_100g": {
+    "before": {
+      "kcal": 82.45,
+      "protein_g": 2.39,
+      "fat_g": 2.04,
+      "carbs_g": 13.71,
+      "sugar_g": 13.26
+    },
+    "after": {
+      "kcal": 66.37,
+      "protein_g": 2.47,
+      "fat_g": 1.47,
+      "carbs_g": 10.51,
+      "sugar_g": 9.87
+    }
+  },
+  "warnings": [
+    "Soy drink introduces soy allergen and removes milk allergen.",
+    "Plant drinks lack lactose, so fermentation times and gel firmness may vary.",
+    "Ensure proper sucrose or sugar adjustment for adequate fermentation substrate."
+  ],
+  "trace": [
+    {
+      "step": 1,
+      "iteration": 1,
+      "type": "llm_call",
+      "tool": "plan",
+      "arguments": null,
+      "result": {
+        "ingredients": [
+          {
+            "name": "молоко 2.5%",
+            "english": "milk 2.5%",
+            "spec": "spec-milk-2-5"
+          },
+          {
+            "name": "цукор",
+            "english": "sugar",
+            "spec": "spec-sucrose"
+          },
+          {
+            "name": "полуниця заморожена",
+            "english": "frozen strawberry",
+            "spec": "spec-strawberry-frozen"
+          },
+          {
+            "name": "закваска",
+            "english": "starter culture",
+            "spec": "spec-yogurt-starter"
+          }
+        ],
+        "candidates": [
+          {
+            "english": "Oat Drink (Enzymatically Hydrolysed)",
+            "spec": "spec-oat-drink"
+          },
+          {
+            "english": "Soy Drink, Unsweetened",
+            "spec": "spec-soy-drink"
+          }
+        ],
+        "queries": [
+          "plant based yogurt fermentation trials",
+          "vegan yogurt starter culture formulation"
+        ]
+      },
+      "message": null,
+      "duration_ms": 1342,
+      "usage": {
+        "provider": "gemini",
+        "http_attempts": 1,
+        "input_tokens": 682,
+        "output_tokens": 181,
+        "reasoning_tokens": 0,
+        "total_tokens": 863,
+        "at_ms": 1
+      }
+    },
+    {
+      "step": 2,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "spec_tables",
+      "arguments": {
+        "doc_ids": [
+          "spec-milk-2-5",
+          "spec-oat-drink",
+          "spec-soy-drink",
+          "spec-strawberry-frozen",
+          "spec-sucrose",
+          "spec-yogurt-starter"
+        ]
+      },
+      "result": {
+        "spec-oat-drink": {
+          "Value": {
+            "kcal": 46.0,
+            "fat_g": 1.5,
+            "carbs_g": 6.7,
+            "sugar_g": 4.0,
+            "protein_g": 1.0
+          }
+        },
+        "spec-soy-drink": {
+          "Value": {
+            "kcal": 33.0,
+            "fat_g": 1.8,
+            "carbs_g": 0.7,
+            "sugar_g": 0.5,
+            "protein_g": 3.0
+          }
+        },
+        "spec-sucrose": {
+          "Value": {
+            "kcal": 400.0,
+            "fat_g": 0.0,
+            "carbs_g": 100.0,
+            "sugar_g": 100.0,
+            "protein_g": 0.0,
+            "sweetness": 1.0
+          }
+        },
+        "spec-yogurt-starter": {
+          "Freeze-dried plant-based DVS": {
+            "kcal": 380.0,
+            "fat_g": 0.5,
+            "carbs_g": 90.0,
+            "sugar_g": 5.0,
+            "protein_g": 2.0,
+            "max_dosage_pct": 0.05
+          },
+          "Bulk starter (fermented milk 2.5%)": {
+            "kcal": 55.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.0,
+            "sugar_g": 3.6,
+            "protein_g": 3.0
+          }
+        },
+        "spec-strawberry-frozen": {
+          "Value": {
+            "kcal": 35.0,
+            "fat_g": 0.1,
+            "carbs_g": 9.1,
+            "sugar_g": 4.6,
+            "protein_g": 0.4
+          }
+        },
+        "spec-milk-2-5": {
+          "Value": {
+            "kcal": 53.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.7,
+            "sugar_g": 4.7,
+            "protein_g": 2.9
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 3,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "search_knowledge_base",
+      "arguments": {
+        "query": "plant based yogurt fermentation trials"
+      },
+      "result": {
+        "chunks": [
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
+            "score": 0.6235
+          },
+          {
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "# Yogurt Starter Cultures\n\nYogurt is fermented by *Streptococcus thermophilus* and *Lactobacillus delbrueckii* subsp. *bulgaricus*, often with added *L. acidophilus* or *Bifidobacterium*. The same bacteria can be supplied in forms that differ in allergens and vegan status.\n\n## Forms of starter\n\n| Fo…",
+            "score": 0.5612
+          },
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "closest protein (3.0 g), gels well with plant cultures; introduces **soy** allergen |\n| Oat drink (spec-oat-drink) | 1:1 by weight | only 1.0 g protein: weak gel, add 1–2% starch or pectin; oats = gluten unless certified GF |\n| Coconut drink | 1:1 by weight | very low protein (0.2–0.5 g), needs thic…",
+            "score": 0.557
+          }
+        ],
+        "nutrients_per_100g": {
+          "spec-yogurt-starter": {
+            "Freeze-dried plant-based DVS": {
+              "kcal": 380.0,
+              "fat_g": 0.5,
+              "carbs_g": 90.0,
+              "sugar_g": 5.0,
+              "protein_g": 2.0,
+              "max_dosage_pct": 0.05
+            },
+            "Bulk starter (fermented milk 2.5%)": {
+              "kcal": 55.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.0,
+              "sugar_g": 3.6,
+              "protein_g": 3.0
+            }
+          },
+          "spec-milk-2-5": {
+            "kcal": 53.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.7,
+            "sugar_g": 4.7,
+            "protein_g": 2.9
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": 46,
+      "usage": null
+    },
+    {
+      "step": 4,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "search_knowledge_base",
+      "arguments": {
+        "query": "vegan yogurt starter culture formulation"
+      },
+      "result": {
+        "chunks": [
+          {
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "# Yogurt Starter Cultures\n\nYogurt is fermented by *Streptococcus thermophilus* and *Lactobacillus delbrueckii* subsp. *bulgaricus*, often with added *L. acidophilus* or *Bifidobacterium*. The same bacteria can be supplied in forms that differ in allergens and vegan status.\n\n## Forms of starter\n\n| Fo…",
+            "score": 0.7643
+          },
+          {
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "and can be ignored in nutrition calculations; the bulk starter at 1–3% cannot.\n\n## Plant-based bases\n\n- Dairy cultures need lactose. Soy and oat drinks contain none, so add 1–2% sucrose or dextrose as fermentation sugar, or use a plant-based culture selected for sucrose.\n- Fermentation time on soy d…",
+            "score": 0.6265
+          },
+          {
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "Nutrients per 100 g\n\n| Nutrient | Bulk starter (fermented milk 2.5%) | Freeze-dried plant-based DVS |\n|---|---|---|\n| Energy | 55 kcal | 380 kcal |\n| Protein | 3.0 g | 2.0 g |\n| Fat | 2.5 g | 0.5 g |\n| Carbohydrates | 4.0 g | 90 g (maltodextrin carrier) |\n| of which sugars | 3.6 g | 5.0 g |\n| Max do…",
+            "score": 0.6181
+          }
+        ],
+        "nutrients_per_100g": {
+          "spec-yogurt-starter": {
+            "Freeze-dried plant-based DVS": {
+              "kcal": 380.0,
+              "fat_g": 0.5,
+              "carbs_g": 90.0,
+              "sugar_g": 5.0,
+              "protein_g": 2.0,
+              "max_dosage_pct": 0.05
+            },
+            "Bulk starter (fermented milk 2.5%)": {
+              "kcal": 55.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.0,
+              "sugar_g": 3.6,
+              "protein_g": 3.0
+            }
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": 45,
+      "usage": null
+    },
+    {
+      "step": 5,
+      "iteration": 3,
+      "type": "llm_call",
+      "tool": "choose",
+      "arguments": null,
+      "result": {
+        "original_nutrients": [
+          {
+            "name": "молоко 2.5%",
+            "nutrients_source": "spec-milk-2-5",
+            "nutrients_column": null
+          },
+          {
+            "name": "цукор",
+            "nutrients_source": "spec-sucrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "полуниця заморожена",
+            "nutrients_source": "spec-strawberry-frozen",
+            "nutrients_column": null
+          },
+          {
+            "name": "закваска",
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+          }
+        ],
+        "substitutions": [
+          {
+            "original": "молоко 2.5%",
+            "replacement": "Soy Drink, Unsweetened",
+            "grams": 800.0,
+            "nutrients_source": "spec-soy-drink",
+            "nutrients_column": null,
+            "sources": [
+              "spec-milk-2-5"
+            ],
+            "rationale": "Replace dairy milk with soy drink to make the product vegan, matching protein content well.",
+            "confidence": "medium"
+          },
+          {
+            "original": "закваска",
+            "replacement": "Freeze-dried plant-based DVS",
+            "grams": 0.4,
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Freeze-dried plant-based DVS",
+            "sources": [
+              "spec-yogurt-starter"
+            ],
+            "rationale": "Use plant-based DVS culture within the maximum dosage limit to maintain vegan status.",
+            "confidence": "medium"
+          },
+          {
+            "original": "закваска",
+            "replacement": "Soy Drink, Unsweetened",
+            "grams": 9.6,
+            "nutrients_source": "spec-soy-drink",
+            "nutrients_column": null,
+            "sources": [
+              "spec-yogurt-starter"
+            ],
+            "rationale": "Make up the remaining weight of the starter with the base soy drink.",
+            "confidence": "medium"
+          }
+        ],
+        "allergens_before": [
+          "milk"
+        ],
+        "allergens_after": [
+          "soybeans"
+        ],
+        "warnings": [
+          "Soy drink introduces soy allergen and removes milk allergen.",
+          "Plant drinks lack lactose, so fermentation times and gel firmness may vary.",
+          "Ensure proper sucrose or sugar adjustment for adequate fermentation substrate."
+        ]
+      },
+      "message": null,
+      "duration_ms": 2490,
+      "usage": {
+        "provider": "gemini",
+        "http_attempts": 1,
+        "input_tokens": 3031,
+        "output_tokens": 653,
+        "reasoning_tokens": 0,
+        "total_tokens": 3684,
+        "at_ms": 1392
+      }
+    },
+    {
+      "step": 6,
+      "iteration": 3,
+      "type": "tool_call",
+      "tool": "calc_nutrition",
+      "arguments": {
+        "ingredients": [
+          {
+            "name": "молоко 2.5%",
+            "grams": 800.0,
+            "nutrients_per_100g": {
+              "kcal": 53.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.7,
+              "sugar_g": 4.7,
+              "protein_g": 2.9
+            },
+            "nutrients_source": "spec-milk-2-5",
+            "nutrients_column": null
+          },
+          {
+            "name": "цукор",
+            "grams": 90.0,
+            "nutrients_per_100g": {
+              "kcal": 400.0,
+              "fat_g": 0.0,
+              "carbs_g": 100.0,
+              "sugar_g": 100.0,
+              "protein_g": 0.0,
+              "sweetness": 1.0
+            },
+            "nutrients_source": "spec-sucrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "полуниця заморожена",
+            "grams": 100.0,
+            "nutrients_per_100g": {
+              "kcal": 35.0,
+              "fat_g": 0.1,
+              "carbs_g": 9.1,
+              "sugar_g": 4.6,
+              "protein_g": 0.4
+            },
+            "nutrients_source": "spec-strawberry-frozen",
+            "nutrients_column": null
+          },
+          {
+            "name": "закваска",
+            "grams": 10.0,
+            "nutrients_per_100g": {
+              "kcal": 55.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.0,
+              "sugar_g": 3.6,
+              "protein_g": 3.0
+            },
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+          }
+        ]
+      },
+      "result": {
+        "total_grams": 1000.0,
+        "per_100g": {
+          "kcal": 82.45,
+          "protein_g": 2.39,
+          "fat_g": 2.04,
+          "carbs_g": 13.71,
+          "sugar_g": 13.26
+        },
+        "missing": {},
+        "rejected": []
+      },
+      "message": null,
+      "duration_ms": 0,
+      "usage": null
+    },
+    {
+      "step": 7,
+      "iteration": 3,
+      "type": "tool_call",
+      "tool": "calc_nutrition",
+      "arguments": {
+        "ingredients": [
+          {
+            "name": "цукор",
+            "grams": 90.0,
+            "nutrients_per_100g": {
+              "kcal": 400.0,
+              "fat_g": 0.0,
+              "carbs_g": 100.0,
+              "sugar_g": 100.0,
+              "protein_g": 0.0,
+              "sweetness": 1.0
+            },
+            "nutrients_source": "spec-sucrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "полуниця заморожена",
+            "grams": 100.0,
+            "nutrients_per_100g": {
+              "kcal": 35.0,
+              "fat_g": 0.1,
+              "carbs_g": 9.1,
+              "sugar_g": 4.6,
+              "protein_g": 0.4
+            },
+            "nutrients_source": "spec-strawberry-frozen",
+            "nutrients_column": null
+          },
+          {
+            "name": "Soy Drink, Unsweetened",
+            "grams": 800.0,
+            "nutrients_per_100g": {
+              "kcal": 33.0,
+              "fat_g": 1.8,
+              "carbs_g": 0.7,
+              "sugar_g": 0.5,
+              "protein_g": 3.0
+            },
+            "nutrients_source": "spec-soy-drink",
+            "nutrients_column": null
+          },
+          {
+            "name": "Freeze-dried plant-based DVS",
+            "grams": 0.4,
+            "nutrients_per_100g": {
+              "kcal": 380.0,
+              "fat_g": 0.5,
+              "carbs_g": 90.0,
+              "sugar_g": 5.0,
+              "protein_g": 2.0,
+              "max_dosage_pct": 0.05
+            },
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Freeze-dried plant-based DVS"
+          },
+          {
+            "name": "Soy Drink, Unsweetened",
+            "grams": 9.6,
+            "nutrients_per_100g": {
+              "kcal": 33.0,
+              "fat_g": 1.8,
+              "carbs_g": 0.7,
+              "sugar_g": 0.5,
+              "protein_g": 3.0
+            },
+            "nutrients_source": "spec-soy-drink",
+            "nutrients_column": null
+          }
+        ]
+      },
+      "result": {
+        "total_grams": 1000.0,
+        "per_100g": {
+          "kcal": 66.37,
+          "protein_g": 2.47,
+          "fat_g": 1.47,
+          "carbs_g": 10.51,
+          "sugar_g": 9.87
+        },
+        "missing": {},
+        "rejected": []
+      },
+      "message": null,
+      "duration_ms": 0,
+      "usage": null
+    }
+  ]
+}

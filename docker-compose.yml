@@ -66,6 +66,25 @@ services:
       db:
         condition: service_healthy
 
+  # Live /reformulate runs against the running api (make live-runs): the dev image (httpx), the
+  # repo mounted so docs/live_runs* land in it, and the default network to reach `api`. Uses the
+  # api's real LLM key through the api itself; never part of `make test`.
+  live:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: dev
+      args:
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+    environment:
+      BASE_URL: http://api:8000
+    volumes:
+      - .:/src
+    depends_on:
+      api:
+        condition: service_started
+    command: ["python", "scripts/live_runs.py"]
+
 networks:
   offline:
     internal: true

@@ -1,0 +1,702 @@
+{
+  "substitutions": [
+    {
+      "original": "цукор",
+      "replacement": "erythritol",
+      "grams": 24.7,
+      "rationale": "Replaces part of the sugar to maintain bulk and part of the sweetness with zero-calorie polyol.",
+      "sources": [
+        "spec-erythritol",
+        "spec-sucrose"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "original": "цукор",
+      "replacement": "polydextrose",
+      "grams": 16.4,
+      "rationale": "Replaces the remaining bulk of the reduced sugar to preserve texture and total solids.",
+      "sources": [
+        "spec-polydextrose",
+        "spec-sucrose"
+      ],
+      "confidence": "medium"
+    },
+    {
+      "original": "цукор",
+      "replacement": "stevia",
+      "grams": 0.1,
+      "rationale": "High-intensity sweetener to make up for the sweetness gap left by removing sugar.",
+      "sources": [
+        "spec-stevia",
+        "spec-sucrose"
+      ],
+      "confidence": "medium"
+    }
+  ],
+  "allergens_before": [
+    "milk"
+  ],
+  "allergens_after": [
+    "milk"
+  ],
+  "nutrition_per_100g": {
+    "before": {
+      "kcal": 82.45,
+      "protein_g": 2.39,
+      "fat_g": 2.04,
+      "carbs_g": 13.71,
+      "sugar_g": 13.26
+    },
+    "after": {
+      "kcal": 67.61,
+      "protein_g": 2.39,
+      "fat_g": 2.04,
+      "carbs_g": 12.13,
+      "sugar_g": 9.14
+    }
+  },
+  "warnings": [
+    "Excessive polyol levels may cause a laxative effect if consumed in large portions.",
+    "High intensity sweeteners can introduce off notes if dosage exceeds recommended limits."
+  ],
+  "trace": [
+    {
+      "step": 1,
+      "iteration": 1,
+      "type": "llm_call",
+      "tool": "plan",
+      "arguments": null,
+      "result": {
+        "ingredients": [
+          {
+            "name": "молоко 2.5%",
+            "english": "milk 2.5%",
+            "spec": "spec-milk-2-5"
+          },
+          {
+            "name": "цукор",
+            "english": "sugar",
+            "spec": "spec-sucrose"
+          },
+          {
+            "name": "полуниця заморожена",
+            "english": "frozen strawberry",
+            "spec": "spec-strawberry-frozen"
+          },
+          {
+            "name": "закваска",
+            "english": "starter culture",
+            "spec": "spec-yogurt-starter"
+          }
+        ],
+        "candidates": [
+          {
+            "english": "Erythritol (E968)",
+            "spec": "spec-erythritol"
+          },
+          {
+            "english": "Polydextrose (E1200)",
+            "spec": "spec-polydextrose"
+          },
+          {
+            "english": "Steviol Glycosides (E960a, Reb A 97%)",
+            "spec": "spec-stevia"
+          }
+        ],
+        "queries": [
+          "sugar reduction in set and stirred yogurt bulking agents",
+          "erythritol and stevia blend in low sugar fruit yogurt texture optimization",
+          "polydextrose as fat and sugar replacer in fermented dairy"
+        ]
+      },
+      "message": null,
+      "duration_ms": 1648,
+      "usage": {
+        "provider": "gemini",
+        "http_attempts": 1,
+        "input_tokens": 683,
+        "output_tokens": 351,
+        "reasoning_tokens": 0,
+        "total_tokens": 1034,
+        "at_ms": 3
+      }
+    },
+    {
+      "step": 2,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "spec_tables",
+      "arguments": {
+        "doc_ids": [
+          "spec-erythritol",
+          "spec-milk-2-5",
+          "spec-polydextrose",
+          "spec-stevia",
+          "spec-strawberry-frozen",
+          "spec-sucrose",
+          "spec-yogurt-starter"
+        ]
+      },
+      "result": {
+        "spec-polydextrose": {
+          "Value": {
+            "kcal": 100.0,
+            "fat_g": 0.0,
+            "carbs_g": 4.0,
+            "sugar_g": 0.0,
+            "protein_g": 0.0,
+            "sweetness": 0.05,
+            "max_dosage_pct": 10.0
+          }
+        },
+        "spec-stevia": {
+          "Value": {
+            "kcal": 0.0,
+            "fat_g": 0.0,
+            "carbs_g": 0.0,
+            "sugar_g": 0.0,
+            "protein_g": 0.0,
+            "sweetness": 250.0,
+            "max_dosage_pct": 0.05
+          }
+        },
+        "spec-erythritol": {
+          "Value": {
+            "kcal": 0.0,
+            "fat_g": 0.0,
+            "carbs_g": 100.0,
+            "sugar_g": 0.0,
+            "protein_g": 0.0,
+            "sweetness": 0.65,
+            "max_dosage_pct": 15.0
+          }
+        },
+        "spec-sucrose": {
+          "Value": {
+            "kcal": 400.0,
+            "fat_g": 0.0,
+            "carbs_g": 100.0,
+            "sugar_g": 100.0,
+            "protein_g": 0.0,
+            "sweetness": 1.0
+          }
+        },
+        "spec-yogurt-starter": {
+          "Freeze-dried plant-based DVS": {
+            "kcal": 380.0,
+            "fat_g": 0.5,
+            "carbs_g": 90.0,
+            "sugar_g": 5.0,
+            "protein_g": 2.0,
+            "max_dosage_pct": 0.05
+          },
+          "Bulk starter (fermented milk 2.5%)": {
+            "kcal": 55.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.0,
+            "sugar_g": 3.6,
+            "protein_g": 3.0
+          }
+        },
+        "spec-strawberry-frozen": {
+          "Value": {
+            "kcal": 35.0,
+            "fat_g": 0.1,
+            "carbs_g": 9.1,
+            "sugar_g": 4.6,
+            "protein_g": 0.4
+          }
+        },
+        "spec-milk-2-5": {
+          "Value": {
+            "kcal": 53.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.7,
+            "sugar_g": 4.7,
+            "protein_g": 2.9
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 3,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "search_knowledge_base",
+      "arguments": {
+        "query": "sugar reduction in set and stirred yogurt bulking agents"
+      },
+      "result": {
+        "chunks": [
+          {
+            "doc_id": "spec-strawberry-frozen",
+            "title": "Strawberries, Frozen, Unsweetened — Ingredient Specification",
+            "chunk_text": "--|---|\n| Energy | 35 kcal |\n| Protein | 0.4 g |\n| Fat | 0.1 g |\n| Carbohydrates | 9.1 g |\n| of which sugars | 4.6 g |\n| Fibre | 2.1 g |\n\n## Sugar reduction notes\n\n- Strawberries themselves contribute little sugar: 100 g in 1 kg of yogurt adds only 0.46 g sugars per 100 g of product. In a sugar-redu…",
+            "score": 0.5881
+          },
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
+            "score": 0.5652
+          },
+          {
+            "doc_id": "spec-sucrose",
+            "title": "Sucrose (White Sugar) — Ingredient Specification",
+            "chunk_text": "# Sucrose, Fine Granulated White Sugar\n\n**Supplier grade:** beet sugar, purity ≥ 99.7%, particle size 0.3–0.6 mm, moisture ≤ 0.06%.\n\n## Function\n\nSugar does much more than sweeten. Before reducing it, check which of these functions the product depends on:\n\n- **Sweetness:** reference sweetness 1.0.\n-…",
+            "score": 0.5525
+          }
+        ],
+        "nutrients_per_100g": {
+          "spec-sucrose": {
+            "kcal": 400.0,
+            "fat_g": 0.0,
+            "carbs_g": 100.0,
+            "sugar_g": 100.0,
+            "protein_g": 0.0,
+            "sweetness": 1.0
+          },
+          "spec-strawberry-frozen": {
+            "kcal": 35.0,
+            "fat_g": 0.1,
+            "carbs_g": 9.1,
+            "sugar_g": 4.6,
+            "protein_g": 0.4
+          },
+          "spec-milk-2-5": {
+            "kcal": 53.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.7,
+            "sugar_g": 4.7,
+            "protein_g": 2.9
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": 65,
+      "usage": null
+    },
+    {
+      "step": 4,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "search_knowledge_base",
+      "arguments": {
+        "query": "erythritol and stevia blend in low sugar fruit yogurt texture optimization"
+      },
+      "result": {
+        "chunks": [
+          {
+            "doc_id": "trial-cookies-sugar-30",
+            "title": "Trial Report — Butter Cookies, Sugar Reduced by 30%",
+            "chunk_text": "|\n| Sucrose | 150 | 102 |\n| Erythritol (spec-erythritol) | — | 27 |\n| Polydextrose (spec-polydextrose) | — | 21 |\n| Steviol glycosides Reb A 97% (spec-stevia) | — | 0.06 |\n| Liquid whole egg | 50 | 50 |\n| Salt | 2 | 2 |\n| **Total dough** | **702** | **702** |\n\nRemoved sucrose: 48 g (−32%), replaced …",
+            "score": 0.607
+          },
+          {
+            "doc_id": "spec-polydextrose",
+            "title": "Polydextrose (E1200) — Ingredient Specification",
+            "chunk_text": "* raises the starch gelatinisation temperature, like sucrose, which erythritol does not do.\n- **Browning:** slight browning above 170 °C; better colour than erythritol.\n- **Fibre claim:** adds dietary fibre; 3 g fibre per 100 g allows a \"source of fibre\" claim.\n\n## Typical dosage\n\n| Product | Dosage…",
+            "score": 0.5751
+          },
+          {
+            "doc_id": "spec-sucrose",
+            "title": "Sucrose (White Sugar) — Ingredient Specification",
+            "chunk_text": "|---|\n| Erythritol (spec-erythritol) | sweetness 0.6–0.7, bulk 1:1 | max 15% of product; cooling taste; no browning |\n| Polydextrose (spec-polydextrose) | bulk only | no sweetness; use with a high-intensity sweetener |\n| Steviol glycosides (spec-stevia) | sweetness only, 200–300× | 0.02–0.05% of pro…",
+            "score": 0.5493
+          }
+        ],
+        "nutrients_per_100g": {
+          "spec-polydextrose": {
+            "kcal": 100.0,
+            "fat_g": 0.0,
+            "carbs_g": 4.0,
+            "sugar_g": 0.0,
+            "protein_g": 0.0,
+            "sweetness": 0.05,
+            "max_dosage_pct": 10.0
+          },
+          "spec-sucrose": {
+            "kcal": 400.0,
+            "fat_g": 0.0,
+            "carbs_g": 100.0,
+            "sugar_g": 100.0,
+            "protein_g": 0.0,
+            "sweetness": 1.0
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": 65,
+      "usage": null
+    },
+    {
+      "step": 5,
+      "iteration": 2,
+      "type": "tool_call",
+      "tool": "search_knowledge_base",
+      "arguments": {
+        "query": "polydextrose as fat and sugar replacer in fermented dairy"
+      },
+      "result": {
+        "chunks": [
+          {
+            "doc_id": "spec-polydextrose",
+            "title": "Polydextrose (E1200) — Ingredient Specification",
+            "chunk_text": "# Polydextrose (E1200)\n\n**Supplier grade:** soluble glucose polymer, fibre content ≥ 90% (AOAC 2000.11), pH 2.5–7.0 in 10% solution, moisture ≤ 4%.\n\n## Function\n\nPolydextrose is a **bulking agent**: it replaces the mass and some of the texture effects of sugar, but has almost no sweetness.\n\n- **Bulk…",
+            "score": 0.6567
+          },
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
+            "score": 0.5832
+          },
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "% of the protein) coagulates at pH 4.6 and forms the yogurt gel. Protein below 2.8% gives a weak set and whey separation.\n- **Mouthfeel:** 2.5% fat gives a medium-creamy texture; below 1.5% fat add 1–2% skimmed milk powder to keep viscosity.\n\n## Typical dosage\n\n| Product | Dosage |\n|---|---|\n| Fruit…",
+            "score": 0.5276
+          }
+        ],
+        "nutrients_per_100g": {
+          "spec-polydextrose": {
+            "kcal": 100.0,
+            "fat_g": 0.0,
+            "carbs_g": 4.0,
+            "sugar_g": 0.0,
+            "protein_g": 0.0,
+            "sweetness": 0.05,
+            "max_dosage_pct": 10.0
+          },
+          "spec-milk-2-5": {
+            "kcal": 53.0,
+            "fat_g": 2.5,
+            "carbs_g": 4.7,
+            "sugar_g": 4.7,
+            "protein_g": 2.9
+          }
+        }
+      },
+      "message": null,
+      "duration_ms": 64,
+      "usage": null
+    },
+    {
+      "step": 6,
+      "iteration": 3,
+      "type": "llm_call",
+      "tool": "choose",
+      "arguments": null,
+      "result": {
+        "original_nutrients": [
+          {
+            "name": "молоко 2.5%",
+            "nutrients_source": "spec-milk-2-5",
+            "nutrients_column": null
+          },
+          {
+            "name": "цукор",
+            "nutrients_source": "spec-sucrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "полуниця заморожена",
+            "nutrients_source": "spec-strawberry-frozen",
+            "nutrients_column": null
+          },
+          {
+            "name": "закваска",
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+          }
+        ],
+        "substitutions": [
+          {
+            "original": "цукор",
+            "replacement": "erythritol",
+            "grams": 54.0,
+            "nutrients_source": "spec-erythritol",
+            "sources": [
+              "spec-erythritol",
+              "spec-sucrose"
+            ],
+            "rationale": "Replaces part of the sugar to maintain bulk and part of the sweetness with zero-calorie polyol.",
+            "confidence": "medium"
+          },
+          {
+            "original": "цукор",
+            "replacement": "polydextrose",
+            "grams": 35.95,
+            "nutrients_source": "spec-polydextrose",
+            "sources": [
+              "spec-polydextrose",
+              "spec-sucrose"
+            ],
+            "rationale": "Replaces the remaining bulk of the reduced sugar to preserve texture and total solids.",
+            "confidence": "medium"
+          },
+          {
+            "original": "цукор",
+            "replacement": "stevia",
+            "grams": 0.05,
+            "nutrients_source": "spec-stevia",
+            "sources": [
+              "spec-stevia",
+              "spec-sucrose"
+            ],
+            "rationale": "High-intensity sweetener to make up for the sweetness gap left by removing sugar.",
+            "confidence": "medium"
+          }
+        ],
+        "allergens_before": [
+          "milk"
+        ],
+        "allergens_after": [
+          "milk"
+        ],
+        "warnings": [
+          "Excessive polyol levels may cause a laxative effect if consumed in large portions.",
+          "High intensity sweeteners can introduce off notes if dosage exceeds recommended limits."
+        ]
+      },
+      "message": null,
+      "duration_ms": 2496,
+      "usage": {
+        "provider": "gemini",
+        "http_attempts": 1,
+        "input_tokens": 3630,
+        "output_tokens": 617,
+        "reasoning_tokens": 0,
+        "total_tokens": 4247,
+        "at_ms": 1721
+      }
+    },
+    {
+      "step": 7,
+      "iteration": 3,
+      "type": "tool_call",
+      "tool": "calc_nutrition",
+      "arguments": {
+        "ingredients": [
+          {
+            "name": "молоко 2.5%",
+            "grams": 800.0,
+            "nutrients_per_100g": {
+              "kcal": 53.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.7,
+              "sugar_g": 4.7,
+              "protein_g": 2.9
+            },
+            "nutrients_source": "spec-milk-2-5",
+            "nutrients_column": null
+          },
+          {
+            "name": "цукор",
+            "grams": 90.0,
+            "nutrients_per_100g": {
+              "kcal": 400.0,
+              "fat_g": 0.0,
+              "carbs_g": 100.0,
+              "sugar_g": 100.0,
+              "protein_g": 0.0,
+              "sweetness": 1.0
+            },
+            "nutrients_source": "spec-sucrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "полуниця заморожена",
+            "grams": 100.0,
+            "nutrients_per_100g": {
+              "kcal": 35.0,
+              "fat_g": 0.1,
+              "carbs_g": 9.1,
+              "sugar_g": 4.6,
+              "protein_g": 0.4
+            },
+            "nutrients_source": "spec-strawberry-frozen",
+            "nutrients_column": null
+          },
+          {
+            "name": "закваска",
+            "grams": 10.0,
+            "nutrients_per_100g": {
+              "kcal": 55.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.0,
+              "sugar_g": 3.6,
+              "protein_g": 3.0
+            },
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+          }
+        ]
+      },
+      "result": {
+        "total_grams": 1000.0,
+        "per_100g": {
+          "kcal": 82.45,
+          "protein_g": 2.39,
+          "fat_g": 2.04,
+          "carbs_g": 13.71,
+          "sugar_g": 13.26
+        },
+        "missing": {},
+        "rejected": []
+      },
+      "message": null,
+      "duration_ms": 0,
+      "usage": null
+    },
+    {
+      "step": 8,
+      "iteration": 3,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "sugar dose computed by code: 41.1 g of 'цукор' replaced (the model proposed 89.95 g)",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 9,
+      "iteration": 3,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "stevia dose computed by code: 0.1 g of 'stevia' for a 24.2 g sucrose-equivalent gap (the model proposed 0.05 g)",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 10,
+      "iteration": 3,
+      "type": "tool_call",
+      "tool": "calc_nutrition",
+      "arguments": {
+        "ingredients": [
+          {
+            "name": "молоко 2.5%",
+            "grams": 800.0,
+            "nutrients_per_100g": {
+              "kcal": 53.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.7,
+              "sugar_g": 4.7,
+              "protein_g": 2.9
+            },
+            "nutrients_source": "spec-milk-2-5",
+            "nutrients_column": null
+          },
+          {
+            "name": "цукор",
+            "grams": 48.8,
+            "nutrients_per_100g": {
+              "kcal": 400.0,
+              "fat_g": 0.0,
+              "carbs_g": 100.0,
+              "sugar_g": 100.0,
+              "protein_g": 0.0,
+              "sweetness": 1.0
+            },
+            "nutrients_source": "spec-sucrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "полуниця заморожена",
+            "grams": 100.0,
+            "nutrients_per_100g": {
+              "kcal": 35.0,
+              "fat_g": 0.1,
+              "carbs_g": 9.1,
+              "sugar_g": 4.6,
+              "protein_g": 0.4
+            },
+            "nutrients_source": "spec-strawberry-frozen",
+            "nutrients_column": null
+          },
+          {
+            "name": "закваска",
+            "grams": 10.0,
+            "nutrients_per_100g": {
+              "kcal": 55.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.0,
+              "sugar_g": 3.6,
+              "protein_g": 3.0
+            },
+            "nutrients_source": "spec-yogurt-starter",
+            "nutrients_column": "Bulk starter (fermented milk 2.5%)"
+          },
+          {
+            "name": "erythritol",
+            "grams": 24.7,
+            "nutrients_per_100g": {
+              "kcal": 0.0,
+              "fat_g": 0.0,
+              "carbs_g": 100.0,
+              "sugar_g": 0.0,
+              "protein_g": 0.0,
+              "sweetness": 0.65,
+              "max_dosage_pct": 15.0
+            },
+            "nutrients_source": "spec-erythritol",
+            "nutrients_column": null
+          },
+          {
+            "name": "polydextrose",
+            "grams": 16.4,
+            "nutrients_per_100g": {
+              "kcal": 100.0,
+              "fat_g": 0.0,
+              "carbs_g": 4.0,
+              "sugar_g": 0.0,
+              "protein_g": 0.0,
+              "sweetness": 0.05,
+              "max_dosage_pct": 10.0
+            },
+            "nutrients_source": "spec-polydextrose",
+            "nutrients_column": null
+          },
+          {
+            "name": "stevia",
+            "grams": 0.1,
+            "nutrients_per_100g": {
+              "kcal": 0.0,
+              "fat_g": 0.0,
+              "carbs_g": 0.0,
+              "sugar_g": 0.0,
+              "protein_g": 0.0,
+              "sweetness": 250.0,
+              "max_dosage_pct": 0.05
+            },
+            "nutrients_source": "spec-stevia",
+            "nutrients_column": null
+          }
+        ]
+      },
+      "result": {
+        "total_grams": 1000.0,
+        "per_100g": {
+          "kcal": 67.61,
+          "protein_g": 2.39,
+          "fat_g": 2.04,
+          "carbs_g": 12.13,
+          "sugar_g": 9.14
+        },
+        "missing": {},
+        "rejected": []
+      },
+      "message": null,
+      "duration_ms": 0,
+      "usage": null
+    }
+  ]
+}
