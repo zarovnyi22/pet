@@ -405,12 +405,85 @@ CREATE TABLE reformulation_runs (
 відкидаються кодом. Окремим комітом: назву замінника дає джерело (назва спеки + колонка,
 `product_name` з OFF), а не модель — у живому прогоні вона раз написала назви російською.
 
-## Бонуси (тільки після готовності основного блоку)
+## Бонуси (після готовності основного блоку)
 
-1. *(не зроблено)* Kubernetes на kind (`k8s/`: Namespace, Secret, Deployment+Service з liveness/readiness на
-   `/health`, StatefulSet+Service для Postgres з PVC). Без Helm.
-2. *(зроблено, `.github/workflows/ci.yml`)* GitHub Actions: Postgres як service container, `uv`, `ruff` + `pytest`, білд образу без
-   push. Бедж у README.
-3. Гібридний пошук: повнотекстовий `tsvector` + Reciprocal Rank Fusion з векторним пошуком.
-4. *(зроблено, `eval/`, пункт 3 фідбеку)* Оцінка якості RAG: `eval/questions.jsonl` (10 питань en/uk з doc_id) + скрипт recall@5.
-5. Хмара — тільки якщо вже є акаунт без картки; інакше абзац у README "як би я деплоїв".
+Порядок за цінністю для співбесіди (як у методичці): 5 → 1 → 3. Кожен блок — окремий коміт,
+перед комітом зупинитись і чекати «ок». Промпти по блоках — у `docs/BONUS_PROMPTS.md`
+(локальний файл, у git не входить).
+
+| # | Бонус | Статус |
+|---|---|---|
+| 1 | Kubernetes на kind (`k8s/`) | [ ] |
+| 2 | GitHub Actions (`.github/workflows/ci.yml`) | [x] |
+| 3 | Гібридний пошук: `tsvector` + Reciprocal Rank Fusion | [ ] |
+| 4 | Оцінка RAG: `eval/questions.jsonl` + recall@5 (пункт 3 фідбеку) | [x] |
+| 5 | Хмара: акаунта з карткою немає → абзац у README «як би я деплоїв» | [ ] |
+
+### Бонус 5 — план деплою в хмару (лише текст)
+
+Пастка: виміряні 3.2 с — лише старт процесу (модель з диска в пам'ять). Холодний старт у
+хмарі з масштабуванням до нуля додає завантаження образу ~2 GB — десятки секунд; ці цифри
+розділяти, не видавати 3.2 с за холодний старт.
+
+Абзац у README: образ у registry, Cloud Run з масштабуванням до нуля, керований Postgres з
+pgvector (Neon або Supabase), секрети в secret manager, міграції на старті, інгест окремим
+job. Чесно позначити, що це план, а не виконаний деплой.
+
+### Бонус 1 — Kubernetes на kind
+
+Склад `k8s/` (kustomize, без Helm): `namespace.yaml`, `api-deployment.yaml`,
+`api-service.yaml`, `postgres-statefulset.yaml` (+ PVC через volumeClaimTemplates),
+`postgres-service.yaml`, `secret.example.yaml`, `ingest-job.yaml`, `kustomization.yaml`.
+
+Відомі пастки (обов'язково врахувати):
+- **Не `:latest`.** Образ з конкретним тегом (`pet-api:<версія>`) і
+  `imagePullPolicy: IfNotPresent`, інакше kind тягне образ з інтернету → `ImagePullBackOff`.
+- **Повільний старт api** (завантаження моделі ембедингів): `startupProbe` з запасом за
+  реально виміряним часом старту; liveness і readiness на `/health` — лише після нього.
+  Інакше `CrashLoopBackOff`.
+- **Секрети не в git.** У репозиторії лише `secret.example.yaml` з порожніми значеннями;
+  справжній Secret створюється з `.env` командою `kubectl create secret generic
+  --from-env-file=.env` (не через kustomize secretGenerator з файлом поза `k8s/`).
+- **DATABASE_URL** у кластері вказує на Service Postgres, а не на `db` з compose.
+- **Великий образ** (torch + модель, ~1.5–2 ГБ): `kind load docker-image` повільний;
+  Docker Desktop може потребувати ≥ 6 ГБ RAM. Ресурси api: requests/limits з урахуванням
+  моделі в пам'яті.
+- **Інгест:** Job з тим самим образом (`python -m app.ingest data/corpus/`); корпус має
+  бути в образі або змонтований — вирішити і пояснити.
+- Postgres: той самий образ pgvector, що в compose; storage class kind за замовчуванням.
+- CI: лише перевірка маніфестів без кластера (`kubectl kustomize` + `kubeconform`).
+- **Liveness не на `/health`.** `/health` дає 503, коли недоступна БД: це сигнал для
+  readiness (под виходить з балансування), а liveness на ньому перезапускав би здоровий api,
+  поки Postgres рестартує. Liveness — `tcpSocket :8000`, readiness — `/health`.
+- **`DATABASE_URL` з `.env` — localhost.** Secret `--from-env-file=.env` занесе його в
+  кластер; `DATABASE_URL` задається явно в `env:` маніфесту (у k8s `env` перекриває
+  `envFrom`), з Secret беруться лише ключі й налаштування LLM.
+- **api стартує раніше за Postgres:** lifespan одразу робить пул і міграції → падіння і
+  `CrashLoopBackOff` у перші хвилини. initContainer чекає `pg_isready` перед api.
+- **Виміряний старт api** — 3.1–3.4 с від старту процесу до `/health` 200 (теплий кеш,
+  `docker compose restart`); у холодному поді повільніше. `startupProbe`: `periodSeconds: 2`,
+  `failureThreshold: 30` = 60 с запасу; liveness і readiness — лише після неї.
+
+Makefile: `k8s-up`, `k8s-ingest`, `k8s-forward`, `k8s-status`, `k8s-down`; kind без Homebrew
+лежить у `~/bin`, тож `KIND ?= $(shell command -v kind 2>/dev/null || echo $(HOME)/bin/kind)`. Готово, коли
+`make k8s-up && make k8s-ingest && make k8s-forward` дає `curl /health` з `db: ok` і `/ask`
+відповідає з джерелами.
+
+### Бонус 3 — гібридний пошук
+
+- **Спершу вимірювання.** Поточний eval англійською — 10/10, тож на ньому покращення не
+  видно. Додати 6–8 «важких» питань з точними термінами (E-коди, «Reb A», числа з таблиць)
+  і зафіксувати recall@5 векторного пошуку до змін. Не підганяти питання під результат.
+- `migrations/004_fulltext.sql`: `chunks.tsv tsvector GENERATED ALWAYS AS
+  (to_tsvector('english', text)) STORED` + GIN-індекс. Мову вказати явно — інакше
+  вираз не immutable і Postgres відмовить.
+- `retrieval.search`: векторний top-20 + повнотекстовий top-20, злиття RRF з k=60, повертає
+  top_k. Прапорець `HYBRID_SEARCH` (default true) для порівняння.
+- **Пастка: `websearch_to_tsquery` / `plainto_tsquery` з'єднують слова через AND.** Для
+  довгого природного питання потрібні всі лексеми в одному чанку → повнотекстовий пошук часто
+  порожній, і RRF нічого не додає. Для питань будувати OR-запит (лексеми, з'єднані `|`) і
+  ранжувати `ts_rank_cd`; перевірити цифрами в H1–H2.
+- Українські питання: повнотекстовий пошук іде за перекладом (як і векторний у `/ask`).
+- `search` використовує і пайплайн `/reformulate` → після зміни перепрогнати
+  `make live-runs` і переконатися, що 15/15 лишилось.
+- README: таблиця recall@5 vector vs hybrid і чесний висновок, навіть якщо покращення мале.
