@@ -42,7 +42,7 @@ flowchart TD
     Q[рецептура + ціль] --> S1["1 · LLM: план<br/>англ. назви, спеки з каталогу,<br/>кандидати на заміну, запити"]
     S1 --> S2["2 · код: таблиці нутрієнтів спек,<br/>lookup_product, search_knowledge_base"]
     S2 --> S3["3 · LLM: вибір джерел і замін<br/>тільки з наданих кандидатів"]
-    S3 --> S4["код: рецептури до/після, calc_nutrition,<br/>доза цукру рівнянням, перевірки цілі"]
+    S3 --> S4["код: рецептури до/після, calc_nutrition,<br/>доза цукру і стевії, ліміти дозування,<br/>перевірки цілі, алергенів, солодкості"]
     S4 -->|помилка: 1 повтор з текстом| S3
     S4 --> OUT[substitutions + nutrition + trace<br/>запис у reformulation_runs]
 ```
@@ -70,7 +70,7 @@ container, залежності через `uv`, ruff і pytest без ключ�
 
 ```bash
 curl localhost:8000/health
-# {"status":"ok","db":"ok","llm_provider":"gemini"}
+# {"status":"ok","db":"ok","llm_provider":"gemini","llm_fallback_provider":null}
 
 curl -X POST localhost:8000/documents -H 'content-type: application/json' -d '{
   "doc_id": "note-demo", "title": "Demo note", "doc_type": "guideline",
@@ -91,23 +91,29 @@ curl -X POST localhost:8000/reformulate -H 'content-type: application/json' \
   "goal": "reduce_sugar", "goal_params": {"percent": 30}}'
 ```
 
-Відповідь `/reformulate` (реальний запуск, скорочено):
+Відповідь `/reformulate` (реальний запуск run 96 з `make live-runs`, повністю в
+`docs/live_runs/reduce_sugar-3.json`, скорочено):
 
 ```json
 {
   "substitutions": [
     {"original": "цукор", "replacement": "Erythritol (E968)", "grams": 20.6,
-     "sources": ["spec-erythritol"], "confidence": "medium", "rationale": "..."},
+     "sources": ["spec-erythritol", "guideline-sugar-reduction"], "confidence": "medium",
+     "rationale": "Partially replaces the removed sugar to provide bulk and clean sweetness."},
     {"original": "цукор", "replacement": "Polydextrose (E1200)", "grams": 20.6,
-     "sources": ["spec-polydextrose"], "confidence": "medium", "rationale": "..."}
+     "sources": ["spec-polydextrose", "guideline-sugar-reduction"], "confidence": "medium",
+     "rationale": "..."},
+    {"original": "цукор", "replacement": "Steviol Glycosides (E960a, Reb A 97%)", "grams": 0.11,
+     "sources": ["spec-stevia", "guideline-sugar-reduction"], "confidence": "medium",
+     "rationale": "Closes the sweetness gap resulting from sucrose reduction."}
   ],
   "allergens_before": ["milk"],
   "allergens_after": ["milk"],
   "nutrition_per_100g": {
     "before": {"kcal": 82.45, "protein_g": 2.39, "fat_g": 2.04, "carbs_g": 13.71, "sugar_g": 13.26},
-    "after":  {"kcal": 68.03, "protein_g": 2.39, "fat_g": 2.04, "carbs_g": 11.73, "sugar_g": 9.14}
+    "after":  {"kcal": 67.99, "protein_g": 2.39, "fat_g": 2.04, "carbs_g": 11.72, "sugar_g": 9.12}
   },
-  "warnings": ["Monitor total polyol levels ...", "Texture and mouthfeel may slightly change ..."],
+  "warnings": ["Excessive polyol consumption may cause laxative effects if consumed in large quantities."],
   "trace": ["... див. нижче"]
 }
 ```
@@ -116,30 +122,36 @@ curl -X POST localhost:8000/reformulate -H 'content-type: application/json' \
 (`agent_timeout` 504, `agent_invalid_output` 502, `llm_unavailable` 503) додають поруч `trace`.
 Помилки LLM: `llm_not_configured` 503 (ключ не задано), `llm_invalid_key` 503 (ключ
 неправильний: «GEMINI_API_KEY is invalid»; без повтору), `llm_rate_limited` 503 (квота),
-`llm_unavailable` 503 (перевантаження чи недоступний хост; повтори з паузами 2–16 с), `llm_timeout` 504, `llm_error` 502 (інша
-відповідь провайдера).
+`llm_unavailable` 503 (перевантаження чи недоступний хост; повтори з паузами 2–16 с),
+`llm_timeout` 504, `llm_error` 502 (інша відповідь провайдера).
 
 ## Як працює агент — на прикладі trace
 
-Той самий запуск `reduce_sugar`: кожен крок є в полі `trace` відповіді, у таблиці
+Той самий запуск `reduce_sugar` (run 96): кожен крок є в полі `trace` відповіді, у таблиці
 `reformulation_runs` і в логах (скорочено):
 
 ```text
 step stage type        tool                   що сталося
-1    1     llm_call    plan                   модель: англ. назви, спеки для 4 інгредієнтів, кандидати
+1    1     llm_call    plan                   модель: англ. назви, спеки для 4 інгредієнтів,
+                                              кандидати (еритрит, полідекстроза, стевія)  999 tok
 2    2     tool_call   spec_tables            таблиці нутрієнтів 7 спек (цукор, молоко, еритрит, ...)
-3    2     tool_call   search_knowledge_base  "sugar reduction in yogurt bulking agents"        112 ms
-4    2     tool_call   search_knowledge_base  "erythritol polydextrose in fermented dairy ..."  112 ms
-5    3     llm_call    choose                 модель: джерела нутрієнтів + еритрит і полідекстроза
-6    3     tool_call   calc_nutrition         до:    82.45 kcal, цукор 13.26 г/100 г, rejected: []
-7    3     correction                         sugar dose computed by code: 41.1 g of 'цукор'
-                                              replaced (the model proposed 54.0 g)
-8    3     tool_call   calc_nutrition         після: 68.03 kcal, цукор 9.14 г/100 г (−31%)
+3–5  2     tool_call   search_knowledge_base  3 запити: спеки + guideline-sugar-reduction
+6    3     llm_call    choose                 модель: джерела нутрієнтів + три заміни цукру  4158 tok
+7    3     tool_call   calc_nutrition         до:    82.45 kcal, цукор 13.26 г/100 г, rejected: []
+8    3     correction                         sugar dose computed by code: 41.1 g of 'цукор'
+                                              replaced (the model proposed 27.0 g)
+9    3     correction                         stevia dose computed by code: 0.11 g of 'Steviol
+                                              Glycosides ...' for a 26.8 g sucrose-equivalent gap
+                                              (the model proposed 0.03 g)
+10   3     tool_call   calc_nutrition         після: 67.99 kcal, цукор 9.12 г/100 г (−31%)
 ```
 
 Що тут видно: модель двічі відповіла мовою (план і вибір), а всі числа — з таблиць спек через
-код; дозу цукру модель запропонувала «на око» (54 г), код розв'язав рівняння з урахуванням
-лактози й полуниці і поставив рівно стільки, щоб цукор упав на ≥30% (41.1 г, −31%).
+код. Дозу цукру модель запропонувала «на око» (27 г), код розв'язав рівняння з урахуванням
+лактози й полуниці і поставив рівно стільки, щоб цукор упав на ≥30% (41.1 г, −31%). Стевію
+модель лише обрала; її дозу (0.11 г) код порахував так, щоб солодкість повернулась до рівня
+«до», тож попередження про солодкість немає. У кроків `llm_call` поле `usage` — провайдер,
+HTTP-спроби і токени (цей запуск: 5 157 токенів за 2 виклики, ~3.5 с).
 
 Дебаг у продакшені — за `X-Request-ID`: той самий id є в заголовку відповіді, у кожному рядку
 JSON-логів (HTTP-запит, виклики LLM з таймінгом, кожен крок агента) і в `reformulation_runs`:
@@ -147,23 +159,27 @@ JSON-логів (HTTP-запит, виклики LLM з таймінгом, ко
 ```bash
 docker compose logs api --no-log-prefix | grep readme-demo
 # {"ts": "...", "level": "INFO", "logger": "app.llm", "message": "llm request",
-#  "request_id": "readme-demo", "provider": "gemini", "status": 200, "duration_ms": 7981}
+#  "request_id": "readme-demo", "provider": "gemini", "status": 200, "duration_ms": 1638,
+#  "input_tokens": 683, "output_tokens": 316, "reasoning_tokens": 0, "total_tokens": 999}
 # {"ts": "...", "logger": "app.agent", "message": "agent llm_call", "request_id": "readme-demo",
 #  "step": 1, "stage": 1, "tool": "plan", ...}
 
 docker compose exec db psql -U postgres -d reformulation -c \
   "SELECT id, status, duration_ms, jsonb_array_length(trace) FROM reformulation_runs ORDER BY id DESC LIMIT 5"
+make tokens   # токени й пік за 60 с по останніх запусках (з trace)
 ```
 
 ## Що б зробив далі
 
-1. **Сліди алергенів і перехресний контакт:** зараз код звіряє алергени, які джерело прямо
-   називає; «may contain» і лінії виробництва (є в `guideline-allergen-policy`) — наступний
-   крок для реального маркування.
-2. **Оцінка якості RAG** (`eval/questions.jsonl` + recall@5) і гібридний пошук (tsvector +
-   RRF): векторний пошук погано знаходить таблиці й числа — це показав агент.
-3. **CI** (GitHub Actions: `docker compose run --rm test` уже самодостатній) і деплой у
-   Kubernetes (kind) з liveness/readiness на `/health`.
+1. **Сліди алергенів і перехресний контакт:** код звіряє лише алергени зі складу (таблиця
+   `Allergens` спеки, теги Open Food Facts); «may contain» і лінії виробництва (є в
+   `guideline-allergen-policy` і тексті спек) — наступний крок для реального маркування.
+2. **Багатомовний пошук для `/ask`:** `multilingual-e5-small` (теж 384 виміри) замість
+   перекладу запиту через LLM — без другого виклику LLM і без втрати деталей при перекладі;
+   потребує переінгесту і префіксів `query:`/`passage:`. Разом із гібридним пошуком (tsvector +
+   RRF): векторний пошук погано знаходить таблиці й числа.
+3. **Kubernetes (kind):** Deployment з liveness/readiness на `/health`, StatefulSet для
+   Postgres з PVC, Secret для ключів LLM — маніфести без Helm.
 4. **Більше запасу на Groq:** з `GROQ_REASONING_EFFORT=low` запуск пайплайна займає
    4.6–5.4K з 8K токенів/хв. Кілька запусків поспіль однаково впираються в ліміт, тут
    допоможе коротший контекст вибору або платний tier.
@@ -206,8 +222,9 @@ docker compose exec db psql -U postgres -d reformulation -c \
   2 збір даних, 3 вибір разом із розрахунком — кожен вибір одразу перевіряється
   `calc_nutrition`, тож повтор рахує заново, 4 фінальні правки); у кроків `llm_call` поле
   `tool` — призначення виклику (`plan` / `choose`), `result` — розібрана відповідь моделі,
-  `duration_ms` — час відповіді LLM; `correction` — що код виправив сам (доза цукру,
-  `confidence`, неперевірені джерела) замість повтору.
+  `duration_ms` — час відповіді LLM, `usage` — провайдер, HTTP-спроби і токени; `correction` —
+  що код виправив сам (доза цукру і стевії, `confidence`, назви замінників, неперевірені
+  джерела, відкинуті числа моделі) замість повтору.
 - **Алергени звіряються з даними.** Код бере алергени й веганський статус кожного інгредієнта
   з його джерела — таблиці `Allergens`/`Vegan` спеки, тієї колонки, з якої взято нутрієнти
   (bulk-закваска — `milk`, рослинна DVS — `none`), або тегів Open Food Facts — і: додає
@@ -216,7 +233,45 @@ docker compose exec db psql -U postgres -d reformulation -c \
   його як не веганський. **Невідомо ≠ можна:** інгредієнт без джерела чи без даних у спеці —
   відмова вибору, а якщо й повтор не виправив — явне попередження і `confidence: low`; для
   Open Food Facts з неповними даними — попередження і `confidence: low`. «May contain»
-  (сліди) поки не враховуються.
+  (сліди) поки не враховуються. Факти по колонках розбираються при інгесті в
+  `documents.allergens` (міграція `003_allergens.sql`); рядки, заінгещені раніше,
+  дозаповнюються на старті. Тестові факти генеруються з корпусу тим самим парсером: ручна
+  фікстура без закваски колись сховала саме цей баг.
+- **Солодкість.** Код гарантує цифру цукру, але еритрит (0.65) і полідекстроза (0.05) забирають
+  солодкість. Тому пайплайн рахує цукровий еквівалент (Σ грами × `Relative sweetness` зі спек)
+  до і після й попереджає, якщо він змінився більше ніж на 15% у будь-який бік; при падінні —
+  з порадою, скільки стевії закрило б розрив.
+- **Модель не дає чисел, код перевіряє дози.** У спеках є рядок `Max dosage (% of product)`
+  (DVS-закваска 0.05, стевія 0.05, еритрит 15, полідекстроза 10). Замінник понад ліміт —
+  повтор вибору з підказкою: 10 г сухої DVS-культури замість bulk-закваски відхиляються, і
+  модель ставить 0.2–0.5 г культури + решту маси рослинною основою, як у Substitutes спеки.
+  Дозу інтенсивного підсолоджувача (`sweetness > 10`, стевія) у `reduce_sugar` рахує код:
+  до рівня солодкості «до», з точністю 0.01 г і в межах ліміту (у живих запусках модель
+  пропонувала від 0.03 до 0.4 г, тобто від −21% до +80% солодкості). Назву замінника дає
+  джерело (назва спеки з колонкою або `product_name` з Open Food Facts), а не модель, яка
+  одного разу написала «эритритол». Рядки `warnings` моделі з дозою чи відсотком
+  відкидаються (у живих запусках такі числа бували хибними: «1.08% (10.8 g)» при 2.04%).
+
+### Живі прогони: 3 цілі × 5 запусків
+
+`make live-runs` (`scripts/live_runs.py`) жене демо-йогурт по трьох цілях, по 5 разів з
+паузою 20 с, і перевіряє кожну відповідь: для `remove_allergen` і `make_vegan` — молоко
+замінене й немає `milk` в `allergens_after`, закваска замінена DVS-культурою ≤ 0.5 г і
+основою на 10 г разом; для `reduce_sugar` — цукор −30% і солодкість не зросла. Невдала
+перевірка — невдалий запуск. Повний звіт — [`docs/live_runs.md`](docs/live_runs.md), сирі
+відповіді — `docs/live_runs/*.json`.
+
+| Ціль | Успішних | Середня тривалість | Закваску замінено | Провайдер | LLM-викликів | Токенів у середньому |
+|---|---|---|---|---|---|---|
+| remove_allergen | 5/5 | 4.1 с | 5/5 | gemini | 2.0 (2–2) | 4 570 |
+| reduce_sugar | 5/5 | 4.3 с | — | gemini | 2.2 (2–3) | 5 836 |
+| make_vegan | 5/5 | 4.2 с | 5/5 | gemini | 2.0 (2–2) | 4 462 |
+
+15/15; один запуск `reduce_sugar` знадобив повтору вибору (3 виклики), fallback на Groq
+(увімкнений) не знадобився. У відповідях: DVS 0.4–0.5 г + напій 9.5–9.6 г, цукор 13.26 →
+9.12–9.14 г/100 г, стевія 0.10–0.13 г. Прогін зроблено до коміту, що бере назви замінників
+із джерел: у двох запусках назви ще були від моделі (в одному — російською), на перевірки це
+не впливає.
 
 ### Чанки по 200 токенів, а не 400
 
@@ -341,6 +396,11 @@ Facts (суха хлібна закваска на 338 kcal замість йо�
 bulk-заквасці, веганський статус). Тепер кожен інгредієнт демо має внутрішню спеку, пріоритетнішу
 за Open Food Facts.
 
+Машиночитані частини спек, які розбирає код: таблиця нутрієнтів (плюс рядки
+`Relative sweetness` у цукру й підсолоджувачів і `Max dosage` там, де ліміт є в спеці чи в
+`guideline-sugar-reduction`) і таблиця `Allergens`/`Vegan` з тими самими колонками. Текст під
+таблицями лишається для RAG.
+
 ### Нутрієнти в `calc_nutrition` звіряються з джерелом у коді
 
 Правило промпту «нутрієнти лише з бази знань або Open Food Facts» модель порушувала: брала
@@ -365,7 +425,9 @@ bulk-заквасці, веганський статус). Тепер кожен
 функція, дозування, заміни), тож модель або вгадувала цифри, або витрачала ітерації на
 повторні пошуки таблиці. Тепер таблиця розбирається при інгесті і приходить у результаті
 `search_knowledge_base` разом із будь-яким чанком цієї спеки. Таблиці з кількома колонками
-(bulk vs freeze-dried закваска) зберігаються по колонках.
+(bulk vs freeze-dried закваска) зберігаються по колонках. Так само, окремою міграцією
+`003_allergens.sql`, додано `documents.allergens`: таблиця алергенів і веганського статусу по
+тих самих колонках.
 
 ### `lookup_product` повертає до 3 продуктів, а не перший знайдений
 
