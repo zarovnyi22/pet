@@ -89,6 +89,13 @@ def check(goal: str, status: int, body: dict[str, Any]) -> list[str]:
             problems.append("milk in allergens_after")
         if not any(s["original"] == MILK for s in body.get("substitutions", [])):
             problems.append("milk not replaced")
+        # A replacement that adds an allergen (soy drink -> soybeans) needs the sign-off warning.
+        for allergen in body["allergens_after"]:
+            new = allergen not in body.get("allergens_before", [])
+            if new and not any(
+                w.startswith(f"New allergen: {allergen} ") for w in body["warnings"]
+            ):
+                problems.append(f"no New allergen warning for {allergen}")
         problems += starter_problems(body)
     if goal == "reduce_sugar":
         nutrition = body["nutrition_per_100g"]

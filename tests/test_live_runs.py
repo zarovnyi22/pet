@@ -22,8 +22,13 @@ def answer(starter_subs: list[tuple[str, float, str | None]], allergens_after=("
     usage_ = {"provider": "gemini", "total_tokens": 3000}
     return {
         "substitutions": subs,
+        "allergens_before": ["milk"],
         "allergens_after": list(allergens_after),
-        "warnings": [],
+        "warnings": [
+            f"New allergen: {a} (from Soy Drink, Unsweetened). Requires written sign-off ..."
+            for a in allergens_after
+            if a != "milk"
+        ],
         "trace": [
             {"type": "llm_call", "tool": "plan", "result": {}, "usage": usage_},
             {
@@ -95,3 +100,17 @@ def test_usage_shows_fallback_provider_calls_and_tokens():
     body = answer(GOOD)
     body["trace"][1]["usage"] = {"provider": "gemini,groq", "total_tokens": 2000}
     assert usage(body) == {"provider": "gemini,groq", "calls": 2, "tokens": 5000}
+
+
+@pytest.mark.parametrize("goal", ["remove_allergen", "make_vegan"])
+def test_new_allergen_without_its_warning_fails(goal):
+    body = answer(GOOD)
+    body["warnings"] = ["Soy adds a new allergen."]  # the model's own words are not enough
+    assert check(goal, 200, body) == ["no New allergen warning for soybeans"]
+
+
+def test_allergen_already_in_the_recipe_needs_no_warning():
+    body = answer(GOOD, allergens_after=["soybeans"])
+    body["allergens_before"] = ["milk", "soybeans"]
+    body["warnings"] = []
+    assert check("make_vegan", 200, body) == []
