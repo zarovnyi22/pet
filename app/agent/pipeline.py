@@ -483,6 +483,16 @@ class ReformulationPipeline:
                     message=f"{field}: added {added} stated by the sources of "
                     f"{sorted({n for a in added for n in data[a]})}",
                 )
+        # A substitution that adds an allergen needs sign-off (guideline-allergen-policy, rule
+        # 2): said by code, whatever the model wrote about it.
+        for allergen in choice.allergens_after:
+            if allergen not in choice.allergens_before:
+                origin = ", ".join(data_after.get(allergen, [])) or "the model's allergen list"
+                choice.warnings.append(
+                    f"New allergen: {allergen} (from {origin}). Requires written sign-off from "
+                    "Quality and a label update before the first production run "
+                    "(guideline-allergen-policy)."
+                )
 
     def _check_sweetness(
         self,

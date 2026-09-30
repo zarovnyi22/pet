@@ -724,3 +724,26 @@ async def test_multi_column_spec_name_carries_the_column_and_off_uses_the_produc
         "Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)",
         "Coconut drink",
     ]
+
+
+async def test_new_allergen_gets_a_sign_off_warning_from_code():
+    out = await run(FakeLLM([plan(), choice(warnings=[])]))  # the model warned about nothing
+
+    assert out.allergens_after == ["soybeans"]
+    sign_off = (
+        "New allergen: soybeans (from Soy Drink, Unsweetened). Requires written sign-off from "
+        "Quality and a label update before the first production run "
+        "(guideline-allergen-policy)."
+    )
+    # Soy drink replaces the milk and the starter mass: one warning, the ingredient named once.
+    assert out.warnings.count(sign_off) == 1
+
+
+async def test_no_new_allergen_no_sign_off_warning():
+    request = YOGURT.model_copy(
+        update={"goal": "reduce_sugar", "goal_params": GoalParams(percent=30)}
+    )
+    out = await run(
+        FakeLLM([plan(), choice(substitutions=[ERYTHRITOL], allergens_after=["milk"])]), request
+    )
+    assert not [w for w in out.warnings if w.startswith("New allergen")]
