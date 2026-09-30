@@ -229,7 +229,9 @@ async def test_reformulate_returns_answer_and_logs_the_run(db_client):
     assert [s["type"] for s in body["trace"] if s["type"] == "llm_call"] == ["llm_call"] * 2
     run = await fetch_run(resp.headers["X-Run-Id"])
     assert run["status"] == "ok"
-    assert json.loads(run["response"])["substitutions"][0]["replacement"] == "соєвий напій"
+    assert (
+        json.loads(run["response"])["substitutions"][0]["replacement"] == "Soy Drink, Unsweetened"
+    )
     assert run["trace"] == body["trace"] and run["duration_ms"] >= 0
 
 

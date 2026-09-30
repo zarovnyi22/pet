@@ -253,6 +253,7 @@ class Toolbox:
         # (specs) and, for documents without one, the numbers in its chunk texts.
         self._product_nutrients: dict[str, dict[str, float]] = {}
         self._product_facts: dict[str, dict[str, Any]] = {}  # off:<code> -> allergens, vegan
+        self._product_names: dict[str, str] = {}  # off:<code> -> product_name
         self._doc_tables: dict[str, dict[str, dict[str, float]]] = {}
         self._doc_numbers: dict[str, set[float]] = {}
 
@@ -266,9 +267,18 @@ class Toolbox:
         nutrients: dict[str, float],
         allergen_tags: list[str] | None = None,
         vegan: str = "unknown",
+        name: str = "",
     ) -> None:
         self._product_nutrients[source] = nutrients
         self._product_facts[source] = allergens.from_off(allergen_tags or [], vegan)
+        if name:
+            self._product_names[source] = name
+
+    def product_name(self, source: str) -> str | None:
+        return self._product_names.get(source)
+
+    def columns_of(self, doc_id: str) -> list[str]:
+        return list(self._doc_tables.get(doc_id, {}))
 
     def product_facts(self, source: str) -> dict[str, Any] | None:
         return self._product_facts.get(source)
@@ -339,6 +349,7 @@ class Toolbox:
                     product["nutrients_per_100g"],
                     product.get("allergens"),
                     product.get("vegan", "unknown"),
+                    product.get("product_name", ""),
                 )
         return result
 

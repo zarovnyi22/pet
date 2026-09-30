@@ -53,9 +53,9 @@ async def test_make_vegan_with_soy_drink_and_plant_starter_passes():
     out = await run(FakeLLM([plan(), choice(substitutions=[SOY, *starter()])]), VEGAN)
 
     assert [(s.replacement, s.grams) for s in out.substitutions] == [
-        ("соєвий напій", 800),
-        ("рослинна закваска", 0.2),
-        ("соєвий напій", 9.8),
+        ("Soy Drink, Unsweetened", 800),
+        ("Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)", 0.2),
+        ("Soy Drink, Unsweetened", 9.8),
     ]
     assert out.allergens_after == ["soybeans"]
     assert not [w for w in out.warnings if "status" in w]

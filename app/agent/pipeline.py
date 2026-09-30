@@ -50,6 +50,7 @@ from app.schemas import (
 # Aim one point past the requested sugar cut, so rounding grams can never miss the goal.
 SUGAR_MARGIN_POINTS = 1.0
 PROTEIN_DROP_WARNING = 0.20
+SPEC_TITLE_SUFFIX = " — Ingredient Specification"
 # Sucrose equivalent (grams x relative sweetness) may fall this much before a warning: sugar
 # per 100 g is guaranteed by code, sweetness is not (erythritol 0.65, polydextrose 0.05).
 SWEETNESS_DROP_WARNING = 0.15
@@ -171,6 +172,7 @@ class ReformulationPipeline:
         self._attempt = 1  # of the current LLM step: unknown allergen status is refused once
         self._deadline = 0.0
         self._started = 0.0
+        self._catalog: dict[str, str] = {}  # doc_id -> title of every spec with a nutrient table
 
     async def run(self, request: ReformulateIn) -> ReformulateOut:
         self._started = time.monotonic()
@@ -188,6 +190,7 @@ class ReformulationPipeline:
     async def _run(self, request: ReformulateIn) -> ReformulateOut:
         self._stage = 1
         catalog = dict(await self._bounded(spec_catalog(self.tools.pool)))
+        self._catalog = catalog
         plan = await self._ask(
             "plan",
             PLAN_PROMPT,
@@ -334,6 +337,7 @@ class ReformulationPipeline:
                 raise ValueError(f"substitution: {sub.original!r} is not a recipe ingredient")
             nutrients = self.tools.nutrients_of(sub.nutrients_source, sub.nutrients_column)
             replacements.append((sub, nutrients))
+            self._name_from_source(sub)
         for name, grams in recipe.items():
             replaced = sum(s.grams for s in choice.substitutions if s.original == name)
             if replaced > grams + 0.01:
@@ -687,6 +691,26 @@ class ReformulationPipeline:
                 message=f"dropped model warnings with a dose or percentage (code computes "
                 f"every number): {dropped}",
             )
+
+    def _name_from_source(self, sub: ChosenSubstitution) -> None:
+        """The replacement is named by its source, not the model: one live run named them in
+        Russian ("эритритол"), the others in English. A spec gives its title (plus the column
+        when it has several: bulk vs DVS starter), an Open Food Facts product its name."""
+        source = sub.nutrients_source
+        if source.startswith("off:"):
+            name = self.tools.product_name(source)
+        elif source in self._catalog:
+            name = self._catalog[source].removesuffix(SPEC_TITLE_SUFFIX)
+            if len(self.tools.columns_of(source)) > 1 and sub.nutrients_column:
+                name = f"{name} ({sub.nutrients_column})"
+        else:
+            name = None
+        if name and name != sub.replacement:
+            self._record(
+                "correction",
+                message=f"replacement name {sub.replacement!r} -> {name!r}, from {source}",
+            )
+            sub.replacement = name
 
     def _fix_sources(self, choice: Choice) -> None:
         # Cheap fixes made in place instead of costing a retry.
