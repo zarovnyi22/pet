@@ -1,6 +1,6 @@
 # Everything runs in Docker: the host needs only docker compose (no Python, no uv).
 .PHONY: up down logs health ingest eval eval-translate tokens live-runs test lint fmt \
-	k8s-up k8s-status k8s-forward k8s-down
+	k8s-up k8s-ingest k8s-status k8s-forward k8s-down
 
 # --- Kubernetes on kind (k8s/) -------------------------------------------------------------
 # kind installed without Homebrew lives in ~/bin, which may not be on make's PATH.
@@ -75,6 +75,22 @@ k8s-up:  ## kind cluster + image + Secrets + manifests, waits until postgres and
 	$(KUBECTL) rollout restart deployment/api
 	$(KUBECTL) rollout status statefulset/postgres --timeout=180s
 	$(KUBECTL) rollout status deployment/api --timeout=300s
+
+k8s-ingest:  ## load the corpus baked into the image: re-runs the ingest Job, prints its log
+	$(KUBECTL) delete job ingest --ignore-not-found
+	$(KUBECTL) apply -f k8s/ingest-job.yaml
+	@# Complete or Failed, whichever comes first (kubectl wait knows one condition only).
+	@for i in $$(seq 1 150); do \
+		state=$$($(KUBECTL) get job ingest \
+			-o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}'); \
+		case "$$state" in \
+			*Complete=True*) break ;; \
+			*Failed=True*) $(KUBECTL) logs job/ingest -c ingest --tail=30; exit 1 ;; \
+		esac; \
+		sleep 2; \
+	done; \
+	case "$$state" in *Complete=True*) ;; *) echo "ingest: no result after 300 s"; exit 1 ;; esac
+	$(KUBECTL) logs job/ingest -c ingest | grep -v '^{'
 
 k8s-status:  ## pods, services, volumes and the latest events in the pet namespace
 	$(KUBECTL) get pods,svc,pvc -o wide

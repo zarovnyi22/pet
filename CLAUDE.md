@@ -99,6 +99,8 @@ reformulation-assistant/
 │   └── ingest.py            # CLI для папки з корпусом
 ├── data/corpus/             # 23 markdown-документи
 ├── migrations/              # 001_init.sql, 002_nutrients.sql, 003_allergens.sql
+├── k8s/                     # kind: namespace, postgres StatefulSet+Service, api Deployment+Service,
+│                            #   ingest Job, secret.example (make k8s-up / k8s-ingest / k8s-forward)
 ├── eval/                    # recall@5 для /ask (make eval), токени запусків (make tokens); змонтована в api
 ├── scripts/live_runs.py     # живі прогони /reformulate 3×5 з перевірками (make live-runs, сервіс live)
 ├── docs/                    # SPEC.md, live_runs.md + live_runs/*.json (сирі відповіді прогонів)
@@ -413,11 +415,11 @@ CREATE TABLE reformulation_runs (
 
 | # | Бонус | Статус |
 |---|---|---|
-| 1 | Kubernetes на kind (`k8s/`) | [ ] |
+| 1 | Kubernetes на kind (`k8s/`) | [x] |
 | 2 | GitHub Actions (`.github/workflows/ci.yml`) | [x] |
 | 3 | Гібридний пошук: `tsvector` + Reciprocal Rank Fusion | [ ] |
 | 4 | Оцінка RAG: `eval/questions.jsonl` + recall@5 (пункт 3 фідбеку) | [x] |
-| 5 | Хмара: акаунта з карткою немає → абзац у README «як би я деплоїв» | [ ] |
+| 5 | Хмара: акаунта з карткою немає → абзац у README «як би я деплоїв» | [x] |
 
 ### Бонус 5 — план деплою в хмару (лише текст)
 

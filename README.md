@@ -230,13 +230,59 @@ make tokens   # токени й пік за 60 с по останніх запу
    перекладу запиту через LLM — без другого виклику LLM і без втрати деталей при перекладі;
    потребує переінгесту і префіксів `query:`/`passage:`. Разом із гібридним пошуком (tsvector +
    RRF): векторний пошук погано знаходить таблиці й числа.
-3. **Kubernetes (kind):** Deployment з liveness/readiness на `/health`, StatefulSet для
-   Postgres з PVC, Secret для ключів LLM — маніфести без Helm.
+3. **Kubernetes поза kind:** образ у registry замість `kind load`, Ingress замість
+   port-forward, керований Postgres замість StatefulSet, Secret з менеджера секретів
+   (External Secrets) замість `.env`.
 4. **Більше запасу на Groq:** з `GROQ_REASONING_EFFORT=low` запуск пайплайна займає
    4.6–5.4K з 8K токенів/хв. Кілька запусків поспіль однаково впираються в ліміт, тут
    допоможе коротший контекст вибору або платний tier.
 5. **Моделювання процесу:** `calc_nutrition` рахує сировинну суміш; для йогурту варто
    врахувати ферментацію лактози, для випічки — втрату води.
+
+## Kubernetes (kind)
+
+Той самий сервіс у локальному кластері kind: маніфести в `k8s/` (kustomize, без Helm).
+
+Передумови: `kind` (без Homebrew — у `~/bin`, Makefile знайде його і там), `kubectl` (є в
+Docker Desktop), для Docker Desktop — щонайменше 6 GB пам'яті, і заповнений `.env`.
+
+```bash
+make k8s-up        # кластер pet, збірка й завантаження образів, Secrets, маніфести; ~2–5 хв
+make k8s-ingest    # Job інгесту: "done: 23/23 files"
+make k8s-forward   # api на localhost:8001 (8000 зайнятий compose); тримає термінал
+make k8s-down      # видалити кластер разом із томом бази
+```
+
+**Після кожного `make k8s-up` перезапусти `make k8s-forward`.** `k8s-up` робить
+`rollout restart` api (тег образу сталий, інакше под не підхопить нову збірку), а
+`kubectl port-forward svc/api` прив'язаний до конкретного пода: коли той под замінено,
+старий forward більше нічого не пересилає.
+
+Що де лежить у `k8s/`: `namespace.yaml`; `postgres-statefulset.yaml` + `postgres-service.yaml`
+(headless) — той самий образ pgvector, що в compose, PVC на 1 GiB; `api-deployment.yaml` +
+`api-service.yaml`; `ingest-job.yaml` — не в kustomization, запускається `make k8s-ingest`;
+`secret.example.yaml` — лише приклад, теж не в kustomization.
+
+**Secrets не в git.** `make k8s-up` створює `pet-llm` з `.env`
+(`kubectl create secret generic --from-env-file=.env`) і `pet-postgres` з випадковим паролем
+(`openssl rand -hex 16`, лише один раз: новий пароль не збігся б з базою на томі). У
+репозиторії — тільки `secret.example.yaml` з порожніми значеннями.
+
+Відомі пастки, які враховано:
+- тег `pet-api:0.1.0` і `imagePullPolicy: IfNotPresent`, а не `latest`, — інакше kind іде по
+  образ у Docker Hub (`ImagePullBackOff`);
+- образи завантажуються через `docker save --platform` + `kind load image-archive`: звичайний
+  `kind load docker-image` падає на багатоплатформному pgvector;
+- `startupProbe` 30 × 2 с (виміряний старт 3.1–3.4 с, холодний под повільніший); liveness —
+  `tcpSocket`, бо `/health` дає 503 без бази й перезапускав би здоровий процес; readiness —
+  `/health`;
+- `DATABASE_URL` явно в `env:`: `.env` у Secret містить localhost, а `env` перекриває `envFrom`;
+- initContainer чекає `pg_isready`: api робить міграції на старті й інакше падав би, поки
+  Postgres піднімається;
+- корпус запечений в образ (92 KB) для Job інгесту: у kind немає зручного hostPath, а
+  kustomize не читає файли поза `k8s/`.
+
+CI перевіряє маніфести без кластера: `kubectl kustomize` + `kubeconform -strict`.
 
 ## Як би я деплоїв у хмару
 
