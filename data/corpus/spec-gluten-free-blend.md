@@ -32,6 +32,11 @@ Rest batters for 20–30 minutes before baking so starches hydrate; this reduces
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
+
 Free from the 14 EU allergens when produced on a dedicated gluten-free line. Our supplier's line also processes buckwheat and millet (not allergens). Do not add standard oats, oat drink or wheat starch to products labelled gluten-free.
 
 ## Nutrients per 100 g (blend without hydrocolloid)

@@ -18,7 +18,7 @@ import json
 import math
 import time
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, NamedTuple
 
 from pydantic import BaseModel, BeforeValidator, Field, ValidationError
 
@@ -131,6 +131,14 @@ class Choice(BaseModel):
 CHOICE_SCHEMA = json.dumps(Choice.model_json_schema(), separators=(",", ":"))
 
 
+class Original(NamedTuple):
+    """Where an original ingredient's nutrients come from, as the choice named it."""
+
+    source: str | None
+    column: str | None
+    nutrients: dict[str, float]
+
+
 class _Computed(BaseModel):
     """A choice that passed every check, with the nutrition code computed for it."""
 
@@ -146,6 +154,7 @@ class ReformulationPipeline:
         self.timeout_seconds = timeout_seconds
         self.trace: list[TraceStep] = []
         self._stage = 0
+        self._attempt = 1  # of the current LLM step: unknown allergen status is refused once
         self._deadline = 0.0
 
     async def run(self, request: ReformulateIn) -> ReformulateOut:
@@ -192,6 +201,7 @@ class ReformulationPipeline:
         """One JSON completion, checked by `parse`; one retry with the error, as in the loop."""
         messages = [Message(role="system", content=system), Message(role="user", content=user)]
         for attempt in (1, 2):
+            self._attempt = attempt
             started = time.monotonic()
             text = await self._bounded(self.llm.complete(messages, json_mode=True))
             self._record(
@@ -284,13 +294,13 @@ class ReformulationPipeline:
         choice = Choice.model_validate(data)
         recipe = {i.name: i.grams for i in request.ingredients}
 
-        originals: dict[str, tuple[str, dict[str, float]]] = {}
+        originals: dict[str, Original] = {}
         for o in choice.original_nutrients:
             if o.name not in recipe:
                 raise ValueError(f"original_nutrients: {o.name!r} is not a recipe ingredient")
             if o.nutrients_source:
                 nutrients = self.tools.nutrients_of(o.nutrients_source, o.nutrients_column)
-                originals[o.name] = (o.nutrients_source, nutrients)
+                originals[o.name] = Original(o.nutrients_source, o.nutrients_column, nutrients)
 
         replacements: list[tuple[ChosenSubstitution, dict[str, float]]] = []
         for sub in choice.substitutions:
@@ -339,16 +349,35 @@ class ReformulationPipeline:
         before_items: list[dict[str, Any]],
         after_items: list[dict[str, Any]],
     ) -> None:
-        """Hold the model's allergen lists to what the sources say about each ingredient."""
+        """Hold the model's allergen lists to what the sources say about each ingredient.
+
+        Facts come from the column the nutrients came from (bulk vs plant starter differ).
+        Unknown is not safe: for remove_allergen and make_vegan an ingredient after the change
+        whose spec does not state its status is refused (one retry), and if the retry still has
+        one the answer says so in warnings. Open Food Facts leaves these fields empty for most
+        products, so an OFF product with no data is a warning and low confidence, not a refusal;
+        an OFF product that states the allergen or "not vegan" is refused like a spec.
+        """
         sources = {i["nutrients_source"] for i in before_items + after_items} - {None}
         docs = sorted(s for s in sources if not s.startswith("off:"))
-        facts = await self._bounded(doc_allergens(self.tools.pool, docs))
-        facts |= {s: f for s in sources if (f := self.tools.product_facts(s))}
+        tables = await self._bounded(doc_allergens(self.tools.pool, docs))
+
+        def facts_of(item: dict[str, Any]) -> dict[str, Any] | None:
+            source = item["nutrients_source"]
+            if source is None:
+                return None
+            if source.startswith("off:"):
+                return self.tools.product_facts(source)
+            table = tables.get(source, {})
+            column = item["nutrients_column"]
+            if column is None and len(table) == 1:
+                column = next(iter(table))
+            return table.get(column)
 
         def by_allergen(items: list[dict[str, Any]]) -> dict[str, list[str]]:
             found: dict[str, list[str]] = {}
             for item in items:
-                for allergen in facts.get(item["nutrients_source"], {}).get("allergens", []):
+                for allergen in (facts_of(item) or {}).get("allergens", []):
                     found.setdefault(allergen, []).append(item["name"])
             return found
 
@@ -361,14 +390,50 @@ class ReformulationPipeline:
             )
         if request.goal == "make_vegan":
             non_vegan = [
-                i["name"]
-                for i in after_items
-                if facts.get(i["nutrients_source"], {}).get("vegan") is False
+                i["name"] for i in after_items if (facts_of(i) or {}).get("vegan") is False
             ]
             if non_vegan:
                 raise ValueError(
                     f"{non_vegan} are not vegan according to their sources: replace them too"
                 )
+
+        unknown = {
+            item["name"]: reason
+            for item in after_items
+            if (reason := _unknown_status(item, facts_of(item), request.goal))
+        }
+        from_off = {n: r for n, r in unknown.items() if r.startswith("off:")}
+        from_specs = {n: r for n, r in unknown.items() if n not in from_off}
+        if request.goal == "reduce_sugar":
+            if unknown:
+                choice.warnings.append(
+                    f"Allergen status unknown for {_describe(unknown)}: check the label."
+                )
+        else:
+            if from_specs and self._attempt == 1:
+                raise ValueError(
+                    f"allergen/vegan status unknown for {_describe(from_specs)}; unknown is not "
+                    "safe: choose sources that state it"
+                )
+            for name, reason in from_off.items():
+                choice.warnings.append(
+                    f"allergen/vegan status not verified: Open Food Facts data incomplete for "
+                    f"{name} ({reason})"
+                )
+            if from_specs:
+                choice.warnings.append(
+                    f"allergen/vegan status unknown for {_describe(from_specs)}: not verified, "
+                    "check before any allergen or vegan claim"
+                )
+            for sub in choice.substitutions:
+                if sub.replacement in unknown and sub.confidence != "low":
+                    sub.confidence = "low"
+                    self._record(
+                        "correction",
+                        message=f"confidence of {sub.original!r} -> {sub.replacement!r} set to "
+                        "low: allergen/vegan status not verified",
+                    )
+
         # Allergens the sources state but the model left out are added, not retried.
         for field, data in (("allergens_before", data_before), ("allergens_after", data_after)):
             listed = getattr(choice, field)
@@ -384,7 +449,7 @@ class ReformulationPipeline:
     def _solve_sugar_dose(
         self,
         recipe: dict[str, float],
-        originals: dict[str, tuple[str, dict[str, float]]],
+        originals: dict[str, Original],
         replacements: list[tuple[ChosenSubstitution, dict[str, float]]],
         before: dict[str, Any],
         request: ReformulateIn,
@@ -405,8 +470,8 @@ class ReformulationPipeline:
             raise ValueError(
                 "reduce_sugar: substitute part of the added sugar, and give its original_nutrients"
             )
-        name = max(sugary, key=lambda n: originals[n][1].get("sugar_g", 0))
-        s0 = originals[name][1].get("sugar_g", 0)
+        name = max(sugary, key=lambda n: originals[n].nutrients.get("sugar_g", 0))
+        s0 = originals[name].nutrients.get("sugar_g", 0)
         blend = [(s, n) for s, n in replacements if s.original == name]
         if any("sugar_g" not in n for _, n in blend):
             raise ValueError(f"reduce_sugar: a replacement for {name!r} has no sugar value")
@@ -532,7 +597,7 @@ def _choose_input(request: ReformulateIn, plan: Plan, candidates: str) -> str:
 
 def _recipe_items(
     recipe: dict[str, float],
-    originals: dict[str, tuple[str, dict[str, float]]],
+    originals: dict[str, Original],
     replacements: list[tuple[ChosenSubstitution, dict[str, float]]],
 ) -> list[dict[str, Any]]:
     """calc_nutrition ingredients: what is left of each original, then every replacement.
@@ -543,21 +608,63 @@ def _recipe_items(
     for name, grams in recipe.items():
         rest = grams - sum(s.grams for s, _ in replacements if s.original == name)
         if rest > 0.01:
-            source, nutrients = originals.get(name, (None, {}))
-            items.append(_item(name, rest, source, nutrients))
+            o = originals.get(name, Original(None, None, {}))
+            items.append(_item(name, rest, o.source, o.column, o.nutrients))
     for sub, nutrients in replacements:
         if sub.grams > 0:
-            items.append(_item(sub.replacement, sub.grams, sub.nutrients_source, nutrients))
+            items.append(
+                _item(
+                    sub.replacement,
+                    sub.grams,
+                    sub.nutrients_source,
+                    sub.nutrients_column,
+                    nutrients,
+                )
+            )
     return items
 
 
-def _item(name: str, grams: float, source: str | None, nutrients: dict[str, float]) -> dict:
+def _item(
+    name: str, grams: float, source: str | None, column: str | None, nutrients: dict[str, float]
+) -> dict:
+    # nutrients_column is not a calc_nutrition field (ignored there): the allergen check
+    # reads the facts of the same column the nutrients came from.
     return {
         "name": name,
         "grams": round(grams, 2),
         "nutrients_per_100g": dict(nutrients),
         "nutrients_source": source,
+        "nutrients_column": column,
     }
+
+
+def _unknown_status(item: dict[str, Any], facts: dict[str, Any] | None, goal: str) -> str | None:
+    """Why the sources leave this ingredient's status for the goal unknown, or None if known.
+
+    For OFF products the reason starts with the "off:" source: they are warned about, not
+    refused. make_vegan needs the vegan flag; other goals need the allergen list.
+    """
+    source, column = item["nutrients_source"], item["nutrients_column"]
+    if source is None:
+        return "no source"
+    if source.startswith("off:"):
+        if facts is None:
+            return f"{source}: no data"
+        if goal == "make_vegan" and facts["vegan"] is None:
+            return f"{source}: vegan status not given"
+        if goal != "make_vegan" and not facts["allergens"]:
+            return f"{source}: allergens not listed"
+        return None
+    if facts is None:
+        where = f" for column {column!r}" if column else ""
+        return f"{source} has no allergens table{where}"
+    if goal == "make_vegan" and facts["vegan"] is None:
+        return f"{source} does not state vegan status"
+    return None
+
+
+def _describe(reasons: dict[str, str]) -> str:
+    return ", ".join(f"{name} ({reason})" for name, reason in reasons.items())
 
 
 def _sugar_target(

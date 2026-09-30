@@ -28,6 +28,11 @@ doc_type: ingredient_spec
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | eggs |
+| Vegan | no |
+
 Contains **egg** (EU 1169/2011 Annex II). Not suitable for vegan products.
 
 ## Nutrients per 100 g

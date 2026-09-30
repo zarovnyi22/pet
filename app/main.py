@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.db import apply_migrations, check_db, create_pool
 from app.embeddings import Embedder
 from app.errors import AppError, error_response
+from app.ingest import backfill_allergens
 from app.llm.base import get_llm_client
 from app.logs import request_id_var, setup_logging
 from app.routers import ask, documents, reformulate
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.pool = await create_pool(settings.database_url)
     await apply_migrations(app.state.pool)
+    await backfill_allergens(app.state.pool)
     app.state.embedder = await asyncio.to_thread(Embedder, settings.embedding_model)
     # A missing API key does not block startup: /health stays up, LLM calls return 503.
     app.state.llm = get_llm_client(settings)

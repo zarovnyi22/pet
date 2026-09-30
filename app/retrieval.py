@@ -6,7 +6,6 @@ from typing import Any
 
 import asyncpg
 
-from app import allergens
 from app.embeddings import Embedder
 from app.ingest import to_pgvector
 from app.schemas import Source
@@ -30,13 +29,20 @@ async def doc_nutrients(
     return {r["doc_id"]: json.loads(r["nutrients_per_100g"]) for r in rows}
 
 
-async def doc_allergens(pool: asyncpg.Pool, doc_ids: list[str]) -> dict[str, dict[str, Any]]:
-    """{doc_id: {"allergens": [...], "vegan": bool | None}} from each document's Allergens
-    section. Parsed on read, not stored: it always matches the current content."""
+async def doc_allergens(
+    pool: asyncpg.Pool, doc_ids: list[str]
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Parsed allergens tables: {doc_id: {column: {"allergens": [...], "vegan": bool | None}}},
+    stored at ingest (or backfilled on start). A document without one is left out: its
+    allergen status is unknown, and the pipeline treats unknown as not safe."""
     rows = await pool.fetch(
-        "SELECT doc_id, content FROM documents WHERE doc_id = ANY($1::text[])", doc_ids
+        """
+        SELECT doc_id, allergens FROM documents
+        WHERE doc_id = ANY($1::text[]) AND allergens IS NOT NULL
+        """,
+        doc_ids,
     )
-    return {r["doc_id"]: allergens.from_spec(r["content"]) for r in rows}
+    return {r["doc_id"]: json.loads(r["allergens"]) for r in rows}
 
 
 async def spec_catalog(pool: asyncpg.Pool) -> list[tuple[str, str]]:

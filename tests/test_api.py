@@ -1,10 +1,13 @@
 import json
+from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.agent.pipeline import ReformulationPipeline
+from app.allergens import parse_allergens_table
 from app.config import get_settings
+from app.ingest import backfill_allergens, parse_markdown
 from app.llm.fake import FakeLLM
 from app.main import app
 from app.routers.ask import NO_DATA_ANSWER
@@ -12,6 +15,7 @@ from tests.conftest import make_client
 from tests.test_pipeline import YOGURT, choice, plan
 from tests.test_pipeline import knowledge_base as knowledge_base  # fixture specs + OFF
 
+CORPUS = Path(__file__).resolve().parent.parent / "data" / "corpus"
 EGG_SPEC = {
     "doc_id": "spec-whole-egg",
     "title": "Whole Egg",
@@ -89,6 +93,47 @@ async def test_invalid_document_uses_the_common_error_format(db_client):
     assert resp.status_code == 422
     error = resp.json()["error"]
     assert error["code"] == "validation_error" and "doc_type" in error["message"]
+
+
+STARTER = parse_markdown((CORPUS / "spec-yogurt-starter.md").read_text())
+
+
+async def test_allergens_table_is_parsed_at_ingest(db_client):
+    resp = await db_client.post("/documents", json=STARTER.model_dump())
+
+    assert resp.status_code == 200
+    stored = await app.state.pool.fetchval(
+        "SELECT allergens FROM documents WHERE doc_id = 'spec-yogurt-starter'"
+    )
+    assert json.loads(stored) == parse_allergens_table(STARTER.content)
+    assert json.loads(stored)["Bulk starter (fermented milk 2.5%)"]["vegan"] is False
+
+
+async def test_malformed_allergens_table_is_rejected_not_stored(db_client):
+    bad = STARTER.content.replace("| Allergens | milk | none |", "| Allergens | dairy | none |")
+    resp = await db_client.post("/documents", json=STARTER.model_dump() | {"content": bad})
+
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "invalid_allergens_table"
+    assert await app.state.pool.fetchval("SELECT count(*) FROM documents") == 0
+
+
+async def test_startup_backfills_null_allergens_from_content(db_pool):
+    # Rows as they were before 003_allergens: content stored, allergens NULL, no chunks touched.
+    old_content = STARTER.content.split("| | Bulk starter")[0]  # a spec from before the table
+    await db_pool.executemany(
+        "INSERT INTO documents (doc_id, title, doc_type, content) VALUES ($1, $2, $3, $4)",
+        [
+            (STARTER.doc_id, STARTER.title, STARTER.doc_type, STARTER.content),
+            ("spec-old", "Old", "ingredient_spec", old_content),
+        ],
+    )
+    await backfill_allergens(db_pool)
+
+    rows = dict(await db_pool.fetch("SELECT doc_id, allergens FROM documents"))
+    assert json.loads(rows[STARTER.doc_id]) == parse_allergens_table(STARTER.content)
+    assert rows["spec-old"] is None  # no table in its content: stays unknown until re-ingest
+    assert await db_pool.fetchval("SELECT count(*) FROM chunks") == 0
 
 
 # --- POST /ask ---------------------------------------------------------------------------------

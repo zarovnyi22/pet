@@ -28,6 +28,11 @@ doc_type: ingredient_spec
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | milk |
+| Vegan | no |
+
 Contains **milk**. Not suitable for vegan or dairy-free products.
 
 ## Nutrients per 100 g

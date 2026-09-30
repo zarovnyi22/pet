@@ -37,6 +37,11 @@ At 0.02% dosage the freeze-dried culture contributes below 0.1 kcal per 100 g of
 
 ## Allergens and claims
 
+| | Bulk starter (fermented milk 2.5%) | Freeze-dried plant-based DVS |
+|---|---|---|
+| Allergens | milk | none |
+| Vegan | no | yes |
+
 - For a "milk-free" or "vegan" claim, replace a bulk starter or dairy DVS culture with a **certified dairy-free culture** and keep the supplier's vegan declaration on file (guideline-allergen-policy).
 - A dairy DVS culture in a plant product still requires a precautionary milk statement.
 

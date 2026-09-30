@@ -26,6 +26,11 @@ Plant-based replacement for cow's milk in bakery, pancakes and sweet fillings. D
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | gluten |
+| Vegan | yes |
+
 Oats are listed under **cereals containing gluten** (EU 1169/2011 Annex II). Standard oat drink must be labelled as containing oats/gluten. Only oat drink made from certified gluten-free oats (below 20 mg/kg gluten, EU 828/2014) can be used in gluten-free products. Free from milk, soy and nuts.
 
 ## Nutrients per 100 g

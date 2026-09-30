@@ -26,6 +26,11 @@ doc_type: ingredient_spec
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | gluten |
+| Vegan | yes |
+
 Contains **gluten (wheat)**, EU 1169/2011 Annex II. Not suitable for gluten-free or coeliac products. May contain traces of soy and sesame from shared mill lines (see supplier "may contain" declaration).
 
 ## Nutrients per 100 g

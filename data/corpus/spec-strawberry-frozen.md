@@ -24,6 +24,11 @@ doc_type: ingredient_spec
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
+
 No EU Annex II allergens. Suitable for vegan products. Check supplier declarations for cross-contact on lines shared with nuts.
 
 ## Nutrients per 100 g

@@ -4,13 +4,7 @@ against specs and Open Food Facts instead of being taken from the model's own li
 import re
 from typing import Any
 
-# Words that name an EU Annex II allergen -> its canonical name (schemas.EUAllergen).
-# Deliberately no "dairy": "**certified dairy-free culture**" must not read as milk.
-_SPEC_WORDS = re.compile(
-    r"\b(milk|soya?|soybeans?|eggs?|gluten|wheat|peanuts?|nuts|fish|crustaceans?|molluscs?"
-    r"|celery|mustard|sesame|sulphites|lupin)\b",
-    re.IGNORECASE,
-)
+# Names the allergens table may use -> the canonical EU name (schemas.EUAllergen).
 _CANONICAL = {
     "soy": "soybeans",
     "soya": "soybeans",
@@ -27,30 +21,52 @@ EU_ALLERGENS = frozenset(
     "gluten crustaceans eggs fish peanuts soybeans milk nuts celery mustard sesame sulphites "
     "lupin molluscs".split()
 )
+_VEGAN = {"yes": True, "no": False, "unknown": None}
 
 
-def from_spec(content: str) -> dict[str, Any]:
-    """Allergens and vegan status stated in a spec's "## Allergens" section.
+def parse_allergens_table(content: str) -> dict[str, dict[str, Any]] | None:
+    """The table at the top of a spec's "## Allergens" section, with the same columns as its
+    nutrient table: {column: {"allergens": [canonical EU names], "vegan": bool | None}}.
 
-    Allergens are the bold ones ("Contains **milk**", "**cereals containing gluten**");
-    unbolded mentions are cross-reactions or "may contain" traces, not ingredients.
+    Rows "Allergens" (EU names separated by commas, or "none") and "Vegan" (yes / no /
+    unknown). Any other value raises ValueError: a spec must fail at ingest, not be read as
+    allergen-free. None if the section has no table.
     """
     section = re.search(r"^## Allergens\b[^\n]*$(.*?)(?=^## |\Z)", content, re.M | re.S)
-    text = section.group(1) if section else ""
-    found = {
-        _canonical(word)
-        for bold in re.findall(r"\*\*(.+?)\*\*", text)
-        for word in _SPEC_WORDS.findall(bold)
-    }
-    lowered = text.lower()
-    vegan = (
-        False
-        if "not suitable for vegan" in lowered
-        else True
-        if "suitable for vegan" in lowered
-        else None
-    )
-    return {"allergens": sorted(found), "vegan": vegan}
+    if not section:
+        return None
+    rows = [
+        [cell.strip() for cell in line.strip().strip("|").split("|")]
+        for line in section.group(1).splitlines()
+        if line.strip().startswith("|") and not set(line.strip()) <= set("|-: ")
+    ]
+    if len(rows) < 2:
+        return None
+    columns = rows[0][1:]
+    cells = {label.lower(): values for label, *values in rows[1:]}
+    if set(cells) != {"allergens", "vegan"}:
+        raise ValueError(f"allergens table needs rows Allergens and Vegan, got {sorted(cells)}")
+    table = {}
+    for i, column in enumerate(columns):
+        allergens_cell = cells["allergens"][i].lower() if i < len(cells["allergens"]) else ""
+        vegan_cell = cells["vegan"][i].lower() if i < len(cells["vegan"]) else ""
+        if vegan_cell not in _VEGAN:
+            raise ValueError(f"{column!r}: Vegan must be yes / no / unknown, got {vegan_cell!r}")
+        table[column] = {
+            "allergens": _parse_allergens(column, allergens_cell),
+            "vegan": _VEGAN[vegan_cell],
+        }
+    return table
+
+
+def _parse_allergens(column: str, cell: str) -> list[str]:
+    if cell == "none":
+        return []
+    names = {_canonical(name.strip()) for name in cell.split(",") if name.strip()}
+    unknown = names - EU_ALLERGENS
+    if not names or unknown:
+        raise ValueError(f"{column!r}: Allergens must be EU allergen names or 'none', got {cell!r}")
+    return sorted(names)
 
 
 def from_off(tags: list[str], vegan: str) -> dict[str, Any]:

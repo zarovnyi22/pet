@@ -6,7 +6,7 @@ doc_type: ingredient_spec
 
 # Erythritol (E968)
 
-**Supplier grade:** crystalline erythritol from fermentation, purity ≥ 99.5%, particle size 0.2–0.8 mm. Polyol (sugar alcohol).
+**Supplier grade:** crystalline erythritol from fermentation, purity ≥ 99.5%, particle size 0.2–0.8 mm. Polyol (sugar alcohol). Produced by fermentation of glucose from maize starch on plant-based media; no animal-derived inputs.
 
 ## Function
 
@@ -28,6 +28,11 @@ doc_type: ingredient_spec
 The usual approach is to replace **40–60% of the removed sugar mass** with erythritol and the rest with polydextrose (spec-polydextrose), and to make up sweetness with 0.01–0.03% steviol glycosides (spec-stevia).
 
 ## Allergens
+
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
 
 None of the 14 EU allergens.
 

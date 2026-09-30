@@ -24,6 +24,11 @@ doc_type: ingredient_spec
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | milk |
+| Vegan | no |
+
 Contains **milk** (EU Regulation 1169/2011, Annex II). Contains lactose. Not suitable for vegan products.
 
 ## Nutrients per 100 g

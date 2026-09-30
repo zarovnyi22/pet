@@ -28,6 +28,11 @@ The closest plant-based match to cow's milk in protein content (3.0 g vs 3.3 g p
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | soybeans |
+| Vegan | yes |
+
 Contains **soy** (EU 1169/2011 Annex II). Replacing milk with soy drink removes one allergen and **adds another**; the label must change and the switch requires sign-off per guideline-allergen-policy. Free from milk, gluten and nuts.
 
 ## Nutrients per 100 g

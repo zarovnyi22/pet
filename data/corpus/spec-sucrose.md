@@ -32,6 +32,11 @@ Sugar does much more than sweeten. Before reducing it, check which of these func
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
+
 None of the 14 EU allergens.
 
 ## Nutrients per 100 g

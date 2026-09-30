@@ -29,6 +29,11 @@ To concentrate thin batches: simmer until volume is reduced by 25–30% (about 8
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
+
 Chickpea is **not** one of the 14 EU allergens. People allergic to other legumes (peanut, lupin, soy) may cross-react; mention "made from chickpeas" clearly in the ingredient list. Free from egg, milk and gluten.
 
 ## Nutrients per 100 g

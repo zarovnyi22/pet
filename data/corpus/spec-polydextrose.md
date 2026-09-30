@@ -30,6 +30,11 @@ Recommended use: replace **40–60% of the removed sugar mass** with polydextros
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
+
 None of the 14 EU allergens. Produced from glucose (maize), sorbitol and citric acid.
 
 ## Nutrients per 100 g

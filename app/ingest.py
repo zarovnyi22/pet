@@ -6,17 +6,21 @@ CLI: python -m app.ingest data/corpus/
 import argparse
 import asyncio
 import json
+import logging
 import re
 import sys
 from pathlib import Path
 
 import asyncpg
 
+from app.allergens import parse_allergens_table
 from app.chunking import chunk_text
 from app.config import get_settings
 from app.db import apply_migrations, create_pool
 from app.embeddings import Embedder
 from app.schemas import DocumentIn
+
+logger = logging.getLogger("app.ingest")
 
 # Row label in a spec's nutrient table -> our nutrient key. Other rows (fibre) are ignored.
 NUTRIENT_ROWS = {
@@ -67,6 +71,8 @@ def to_pgvector(vector: list[float]) -> str:
 
 async def ingest_document(pool: asyncpg.Pool, embedder: Embedder, doc: DocumentIn) -> int:
     settings = get_settings()
+    # Parsed first: a malformed allergens table rejects the document before any model work.
+    allergens = parse_allergens_table(doc.content)
     # CPU-bound model work runs before the transaction and off the event loop.
     chunks = await asyncio.to_thread(
         chunk_text,
@@ -83,19 +89,22 @@ async def ingest_document(pool: asyncpg.Pool, embedder: Embedder, doc: DocumentI
         # serialize here instead of interleaving their chunks.
         await conn.execute(
             """
-            INSERT INTO documents (doc_id, title, doc_type, content, nutrients_per_100g)
-            VALUES ($1, $2, $3, $4, $5::jsonb)
+            INSERT INTO documents
+              (doc_id, title, doc_type, content, nutrients_per_100g, allergens)
+            VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
             ON CONFLICT (doc_id) DO UPDATE
               SET title = EXCLUDED.title,
                   doc_type = EXCLUDED.doc_type,
                   content = EXCLUDED.content,
-                  nutrients_per_100g = EXCLUDED.nutrients_per_100g
+                  nutrients_per_100g = EXCLUDED.nutrients_per_100g,
+                  allergens = EXCLUDED.allergens
             """,
             doc.doc_id,
             doc.title,
             doc.doc_type,
             doc.content,
             json.dumps(nutrients) if nutrients else None,
+            json.dumps(allergens) if allergens else None,
         )
         await conn.execute("DELETE FROM chunks WHERE doc_id = $1", doc.doc_id)
         await conn.executemany(
@@ -109,6 +118,42 @@ async def ingest_document(pool: asyncpg.Pool, embedder: Embedder, doc: DocumentI
             ],
         )
     return len(chunks)
+
+
+async def backfill_allergens(pool: asyncpg.Pool) -> None:
+    """Fill documents.allergens where it is NULL from the stored content, with the ingest
+    parser; chunks and embeddings are left alone. Runs on every start, after the migrations,
+    so rows ingested before 003_allergens get their facts without a manual re-ingest.
+
+    Only content that has the table can be filled: a spec stored before the table was added
+    to the corpus stays NULL (unknown, so the pipeline refuses it) until it is re-ingested.
+    """
+    rows = await pool.fetch(
+        "SELECT doc_id, content FROM documents WHERE allergens IS NULL AND doc_type = $1",
+        "ingredient_spec",
+    )
+    stale = []
+    for row in rows:
+        try:
+            facts = parse_allergens_table(row["content"])
+        except ValueError as exc:
+            logger.warning(
+                "allergens table invalid", extra={"doc_id": row["doc_id"], "error": str(exc)}
+            )
+            continue
+        if facts is None:
+            stale.append(row["doc_id"])
+            continue
+        await pool.execute(
+            "UPDATE documents SET allergens = $2::jsonb WHERE doc_id = $1 AND allergens IS NULL",
+            row["doc_id"],
+            json.dumps(facts),
+        )
+    if stale:
+        logger.warning(
+            "specs without an allergens table: re-ingest them (make ingest)",
+            extra={"doc_ids": stale},
+        )
 
 
 def parse_markdown(raw: str) -> DocumentIn:

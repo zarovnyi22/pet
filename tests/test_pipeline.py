@@ -1,5 +1,6 @@
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
@@ -8,6 +9,8 @@ from app.agent import tools as tools_mod
 from app.agent.common import AgentError
 from app.agent.pipeline import ReformulationPipeline
 from app.agent.tools import NutritionIngredient, Toolbox, calc_nutrition
+from app.allergens import parse_allergens_table
+from app.ingest import parse_nutrients_table
 from app.llm.fake import FakeLLM
 from app.schemas import GoalParams, ReformulateIn, Source
 
@@ -27,35 +30,23 @@ YOGURT = ReformulateIn(
 )
 
 
-def nutrients(kcal, protein, fat, carbs, sugar) -> dict:
-    return {"kcal": kcal, "protein_g": protein, "fat_g": fat, "carbs_g": carbs, "sugar_g": sugar}
-
-
 BULK, DVS = "Bulk starter (fermented milk 2.5%)", "Freeze-dried plant-based DVS"
-# Values from the corpus specs (data/corpus/spec-*.md).
-TABLES = {
-    "spec-milk-2-5": {"Value": nutrients(53, 2.9, 2.5, 4.7, 4.7)},
-    "spec-sucrose": {"Value": nutrients(400, 0, 0, 100, 100)},
-    "spec-strawberry-frozen": {"Value": nutrients(35, 0.4, 0.1, 9.1, 4.6)},
-    "spec-yogurt-starter": {
-        BULK: nutrients(55, 3.0, 2.5, 4.0, 3.6),
-        DVS: nutrients(380, 2.0, 0.5, 90, 5.0),
-    },
-    "spec-soy-drink": {"Value": nutrients(33, 3.0, 1.8, 0.7, 0.5)},
-    "spec-oat-drink": {"Value": nutrients(46, 1.0, 1.5, 6.7, 4.0)},
-    "spec-erythritol": {"Value": nutrients(0, 0, 0, 100, 0)},
-}
-# What the specs' Allergens sections say (app.allergens.from_spec on the corpus).
-FACTS = {
-    "spec-milk-2-5": {"allergens": ["milk"], "vegan": False},
-    "spec-soy-drink": {"allergens": ["soybeans"], "vegan": None},
-    "spec-oat-drink": {"allergens": ["gluten"], "vegan": None},
-    "spec-strawberry-frozen": {"allergens": [], "vegan": True},
-}
+# Parsed from the corpus by the ingest parsers, never typed by hand: a hand-written fixture
+# hid the dairy-starter bug (its facts were missing, so the check never saw bulk = milk).
+CORPUS = Path(__file__).resolve().parent.parent / "data" / "corpus"
+SPECS = {path.stem: path.read_text() for path in sorted(CORPUS.glob("spec-*.md"))}
+TABLES = {doc_id: parse_nutrients_table(content) for doc_id, content in SPECS.items()}
+FACTS = {doc_id: parse_allergens_table(content) for doc_id, content in SPECS.items()}
 OFF_STRAWBERRY = {
     "source": "off:5010251784173",
     "product_name": "Strawberries",
-    "nutrients_per_100g": nutrients(32, 0.67, 0, 7.63, 4.66),
+    "nutrients_per_100g": {
+        "kcal": 32,
+        "protein_g": 0.67,
+        "fat_g": 0,
+        "carbs_g": 7.63,
+        "sugar_g": 4.66,
+    },
     "allergens": [],
     "vegan": "yes",
 }
@@ -72,7 +63,7 @@ def knowledge_base(monkeypatch):
         return {d: TABLES[d] for d in doc_ids if d in TABLES}
 
     async def allergens(pool, doc_ids):
-        return {d: FACTS.get(d, {"allergens": [], "vegan": None}) for d in doc_ids}
+        return {d: FACTS[d] for d in doc_ids if FACTS.get(d)}
 
     async def search(pool, embedder, query, top_k):
         text = "Erythritol replaced 30% of sucrose; texture equal to control."
@@ -343,7 +334,7 @@ async def test_allergens_the_model_left_out_are_added_from_the_sources():
     assert (out.allergens_before, out.allergens_after) == (["milk"], ["soybeans"])
     fixes = [s.message for s in out.trace if s.type == "correction" and "allergens" in s.message]
     assert fixes == [
-        "allergens_before: added ['milk'] stated by the sources of ['молоко 2.5%']",
+        "allergens_before: added ['milk'] stated by the sources of ['закваска', 'молоко 2.5%']",
         "allergens_after: added ['soybeans'] stated by the sources of ['соєвий напій']",
     ]
 
@@ -369,3 +360,107 @@ async def test_make_vegan_rejects_an_ingredient_its_source_calls_non_vegan():
     [error] = [s for s in out.trace if s.type == "validation_error"]
     assert "['молоко 2.5%'] are not vegan according to their sources" in error.message
     assert out.allergens_after == ["soybeans"]
+
+
+# --- unknown allergen / vegan status is not safe ----------------------------------------------
+
+
+@pytest.fixture
+def soy_without_allergens_table(knowledge_base, monkeypatch):
+    """spec-soy-drink as a row ingested before its allergens table existed (NULL)."""
+
+    async def allergens(pool, doc_ids):
+        return {d: FACTS[d] for d in doc_ids if FACTS.get(d) and d != "spec-soy-drink"}
+
+    monkeypatch.setattr(pipeline_mod, "doc_allergens", allergens)
+
+
+@pytest.mark.usefixtures("soy_without_allergens_table")
+async def test_spec_without_allergen_data_is_refused_then_warned():
+    out = await run(FakeLLM([plan(), choice(), choice()]))
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert "status unknown for соєвий напій (spec-soy-drink has no allergens table)" in (
+        error.message
+    )
+    assert "unknown is not safe" in error.message
+    assert any("соєвий напій" in w and "not verified" in w for w in out.warnings)
+    assert out.substitutions[0].confidence == "low"
+
+
+@pytest.mark.usefixtures("soy_without_allergens_table")
+async def test_retry_with_a_known_source_has_no_warning():
+    oat = SOY | {"replacement": "вівсяний напій", "nutrients_source": "spec-oat-drink"}
+    fixed = choice(substitutions=[oat, PLANT_STARTER], allergens_after=["gluten"])
+    out = await run(FakeLLM([plan(), choice(), fixed]))
+
+    assert out.substitutions[0].replacement == "вівсяний напій"
+    assert out.substitutions[0].confidence == "medium"
+    assert not [w for w in out.warnings if "status" in w]
+
+
+def off_drink(vegan: str) -> dict:
+    return OFF_STRAWBERRY | {
+        "source": "off:123",
+        "product_name": "Coconut drink",
+        "vegan": vegan,
+    }
+
+
+def plan_with_off_candidate() -> str:
+    data = json.loads(plan())
+    data["candidates"].append({"english": "coconut drink", "spec": None})
+    return json.dumps(data, ensure_ascii=False)
+
+
+COCONUT = SOY | {
+    "replacement": "кокосовий напій",
+    "nutrients_source": "off:123",
+    "sources": ["off:123"],
+}
+VEGAN = YOGURT.model_copy(update={"goal": "make_vegan", "goal_params": GoalParams()})
+
+
+async def test_off_product_without_vegan_status_is_warned_and_low(monkeypatch):
+    async def lookup(http, name):
+        return {"query": name, "products": [off_drink("unknown")]}
+
+    monkeypatch.setattr(tools_mod, "lookup_product", lookup)
+    answer = choice(substitutions=[COCONUT, PLANT_STARTER], allergens_after=[])
+    out = await run(FakeLLM([plan_with_off_candidate(), answer]), VEGAN)
+
+    assert not [s for s in out.trace if s.type == "validation_error"]  # warned, not refused
+    assert (
+        "allergen/vegan status not verified: Open Food Facts data incomplete for "
+        "кокосовий напій (off:123: vegan status not given)"
+    ) in out.warnings
+    assert out.substitutions[0].confidence == "low"
+
+
+async def test_off_product_stated_non_vegan_is_refused(monkeypatch):
+    async def lookup(http, name):
+        return {"query": name, "products": [off_drink("no")]}
+
+    monkeypatch.setattr(tools_mod, "lookup_product", lookup)
+    answer = choice(substitutions=[COCONUT, PLANT_STARTER], allergens_after=[])
+    out = await run(FakeLLM([plan_with_off_candidate(), answer, choice()]), VEGAN)
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert "['кокосовий напій'] are not vegan according to their sources" in error.message
+    assert out.substitutions[0].replacement == "соєвий напій"
+
+
+async def test_reduce_sugar_warns_about_unknown_status_instead_of_refusing():
+    request = YOGURT.model_copy(
+        update={"goal": "reduce_sugar", "goal_params": GoalParams(percent=30)}
+    )
+    no_strawberry_source = [o for o in ORIGINALS if o["name"] != "полуниця заморожена"]
+    answer = choice(
+        original_nutrients=no_strawberry_source, substitutions=[ERYTHRITOL], allergens_after=[]
+    )
+    out = await run(FakeLLM([plan(), answer]), request)
+
+    assert not [s for s in out.trace if s.type == "validation_error"]
+    assert "Allergen status unknown for полуниця заморожена (no source): check the label." in (
+        out.warnings
+    )

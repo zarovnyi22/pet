@@ -29,6 +29,11 @@ Weigh stevia as a 1:100 pre-blend with erythritol or polydextrose; weighing 0.06
 
 ## Allergens
 
+| | Value |
+|---|---|
+| Allergens | none |
+| Vegan | yes |
+
 None of the 14 EU allergens.
 
 ## Nutrients per 100 g
