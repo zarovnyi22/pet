@@ -460,6 +460,15 @@ job. Чесно позначити, що це план, а не виконани
   `envFrom`), з Secret беруться лише ключі й налаштування LLM.
 - **api стартує раніше за Postgres:** lifespan одразу робить пул і міграції → падіння і
   `CrashLoopBackOff` у перші хвилини. initContainer чекає `pg_isready` перед api.
+- **Пароль Postgres іде прямо в `DATABASE_URL`** — лише `[a-zA-Z0-9]` (`openssl rand -hex 16`),
+  інакше `@ / :` зламають URL. Secret `pet-postgres` створюється лише якщо його ще немає:
+  новий пароль при повторному `k8s-up` не збігся б з базою, що лишилась на PVC.
+- **`kind load docker-image` падає на multi-arch образі** (pgvector з Docker Hub) при
+  containerd image store Docker Desktop: `ctr ... content digest ... not found` (імпортуються
+  всі платформи, а завантажена лише arm64). Рішення: `docker save --platform linux/<arch>` +
+  `kind load image-archive`.
+- **Тег образу сталий (`0.1.0`):** після перезбирання і `kind load` под сам не оновиться —
+  `k8s-up` робить `kubectl rollout restart deployment/api` після завантаження образу.
 - **Виміряний старт api** — 3.1–3.4 с від старту процесу до `/health` 200 (теплий кеш,
   `docker compose restart`); у холодному поді повільніше. `startupProbe`: `periodSeconds: 2`,
   `failureThreshold: 30` = 60 с запасу; liveness і readiness — лише після неї.
