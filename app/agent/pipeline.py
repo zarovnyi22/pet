@@ -440,7 +440,11 @@ class ReformulationPipeline:
             for item in after_items
             if (reason := _unknown_status(item, facts_of(item), request.goal))
         }
-        from_off = {n: r for n, r in unknown.items() if r.startswith("off:")}
+        # Only a replacement the model chose from Open Food Facts gets away with a warning: OFF
+        # leaves these fields empty for most products. An ingredient kept from the recipe must be
+        # known (honey from OFF with no vegan tag must not pass as vegan), like any spec.
+        kept = {i["name"] for i in after_items if i["kept"]}
+        from_off = {n: r for n, r in unknown.items() if r.startswith("off:") and n not in kept}
         from_specs = {n: r for n, r in unknown.items() if n not in from_off}
         if request.goal == "reduce_sugar":
             if unknown:
@@ -451,7 +455,7 @@ class ReformulationPipeline:
             if from_specs and self._attempt == 1:
                 raise ValueError(
                     f"allergen/vegan status unknown for {_describe(from_specs)}; unknown is not "
-                    "safe: choose sources that state it"
+                    "safe: choose sources that state it, or replace the ingredient"
                 )
             for name, reason in from_off.items():
                 choice.warnings.append(
@@ -829,7 +833,7 @@ def _recipe_items(
         rest = grams - sum(s.grams for s, _ in replacements if s.original == name)
         if rest > 0.01:
             o = originals.get(name, Original(None, None, {}))
-            items.append(_item(name, rest, o.source, o.column, o.nutrients))
+            items.append(_item(name, rest, o.source, o.column, o.nutrients, kept=True))
     for sub, nutrients in replacements:
         if sub.grams > 0:
             items.append(
@@ -845,16 +849,23 @@ def _recipe_items(
 
 
 def _item(
-    name: str, grams: float, source: str | None, column: str | None, nutrients: dict[str, float]
+    name: str,
+    grams: float,
+    source: str | None,
+    column: str | None,
+    nutrients: dict[str, float],
+    kept: bool = False,
 ) -> dict:
-    # nutrients_column is not a calc_nutrition field (ignored there): the allergen check
-    # reads the facts of the same column the nutrients came from.
+    # nutrients_column and kept are not calc_nutrition fields (ignored there): the allergen
+    # check reads the facts of the column the nutrients came from, and treats an ingredient kept
+    # from the recipe more strictly than a replacement.
     return {
         "name": name,
         "grams": round(grams, 2),
         "nutrients_per_100g": dict(nutrients),
         "nutrients_source": source,
         "nutrients_column": column,
+        "kept": kept,
     }
 
 

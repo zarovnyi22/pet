@@ -41,6 +41,8 @@ OFF_NUTRIENT_KEYS = {
     "sugar_g": "sugars_100g",
 }
 
+OFF_MAIN_NUTRIENTS = ("energy-kcal_100g", "proteins_100g", "fat_100g", "carbohydrates_100g")
+
 NUTRIENTS_SCHEMA = {
     "type": "object",
     "properties": {n: {"type": "number", "minimum": 0} for n in NUTRIENTS},
@@ -229,11 +231,28 @@ async def lookup_product(http: httpx.AsyncClient, name: str) -> dict[str, Any]:
     except (httpx.HTTPError, ValueError) as exc:
         return {"error": f"Open Food Facts request failed: {type(exc).__name__}"}
 
-    # Products without per-100 g energy are useless for calc_nutrition; skip them.
-    usable = [
-        _off_product(p) for p in products if "energy-kcal_100g" in (p.get("nutriments") or {})
-    ]
-    return {"query": name, "products": usable[:OFF_MAX_PRODUCTS]}
+    usable, skipped = [], {}
+    for p in products:
+        reason = _incomplete(p.get("nutriments") or {})
+        if reason:
+            skipped[reason] = skipped.get(reason, 0) + 1
+        elif len(usable) < OFF_MAX_PRODUCTS:
+            usable.append(_off_product(p))
+    result: dict[str, Any] = {"query": name, "products": usable}
+    if skipped:
+        result["skipped"] = skipped  # so the trace shows why a search came back thin
+    return result
+
+
+def _incomplete(nutriments: dict[str, Any]) -> str | None:
+    """Why a product's nutrients are useless for calc_nutrition, or None. All-zero main
+    nutrients are missing data (a honey at 0 kcal); one zero is real (erythritol: 0 kcal,
+    100 g carbohydrates)."""
+    if "energy-kcal_100g" not in nutriments:
+        return "no kcal per 100 g"
+    if not any(nutriments.get(key) for key in OFF_MAIN_NUTRIENTS):
+        return "kcal, protein, fat and carbs all zero or missing"
+    return None
 
 
 # --- dispatch -----------------------------------------------------------------------------

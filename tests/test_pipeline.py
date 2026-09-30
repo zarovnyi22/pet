@@ -272,14 +272,20 @@ async def test_second_invalid_choice_is_502_with_trace():
     assert len(errors) == 2 and "allergens_after still contains 'milk'" in errors[1]
 
 
-async def test_ingredient_without_spec_gets_open_food_facts_nutrients():
-    originals = [
+def off_strawberry_originals() -> list[dict]:
+    return [
         o | {"nutrients_source": OFF_STRAWBERRY["source"]}
         if o["name"] == "полуниця заморожена"
         else o
         for o in ORIGINALS
     ]
-    llm = FakeLLM([plan(strawberry_spec=None), choice(original_nutrients=originals)])
+
+
+async def test_ingredient_without_spec_gets_open_food_facts_nutrients():
+    # OFF lists no allergens for it: unknown for remove_allergen, so the kept strawberry is
+    # refused once, then flagged (see the tests below); the nutrients still come from OFF.
+    with_off = choice(original_nutrients=off_strawberry_originals())
+    llm = FakeLLM([plan(strawberry_spec=None), with_off, with_off])
     out = await run(llm)
 
     [lookup] = [s for s in out.trace if s.tool == "lookup_product"]
@@ -747,3 +753,43 @@ async def test_no_new_allergen_no_sign_off_warning():
         FakeLLM([plan(), choice(substitutions=[ERYTHRITOL], allergens_after=["milk"])]), request
     )
     assert not [w for w in out.warnings if w.startswith("New allergen")]
+
+
+# --- an ingredient kept from the recipe with unknown Open Food Facts status ---------------------
+
+
+async def test_kept_off_ingredient_without_allergens_is_refused_then_flagged():
+    with_off = choice(original_nutrients=off_strawberry_originals())
+    out = await run(FakeLLM([plan(strawberry_spec=None), with_off, with_off]))
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert error.message == (
+        "allergen/vegan status unknown for полуниця заморожена (off:5010251784173: allergens "
+        "not listed); unknown is not safe: choose sources that state it, or replace the ingredient"
+    )
+    # Not fixed by the retry: said plainly (a kept ingredient has no confidence to lower).
+    assert (
+        "allergen/vegan status unknown for полуниця заморожена (off:5010251784173: allergens "
+        "not listed): not verified, check before any allergen or vegan claim"
+    ) in out.warnings
+
+
+async def test_kept_off_ingredient_without_vegan_status_is_refused_for_make_vegan(monkeypatch):
+    async def lookup(http, name):
+        return {"query": name, "products": [OFF_STRAWBERRY | {"vegan": "unknown"}]}
+
+    monkeypatch.setattr(tools_mod, "lookup_product", lookup)
+    with_off = choice(original_nutrients=off_strawberry_originals(), allergens_after=[])
+    with_spec = choice(allergens_after=[])  # the retry cites spec-strawberry-frozen: vegan yes
+    request = YOGURT.model_copy(update={"goal": "make_vegan", "goal_params": GoalParams()})
+    plan_both = json.loads(plan(strawberry_spec=None))
+    plan_both["candidates"].append(
+        {"english": "frozen strawberries", "spec": "spec-strawberry-frozen"}
+    )
+    out = await run(
+        FakeLLM([json.dumps(plan_both, ensure_ascii=False), with_off, with_spec]), request
+    )
+
+    [error] = [s for s in out.trace if s.type == "validation_error"]
+    assert "полуниця заморожена (off:5010251784173: vegan status not given)" in error.message
+    assert not [w for w in out.warnings if "not verified" in w]
