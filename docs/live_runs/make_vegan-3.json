@@ -4,10 +4,9 @@
       "original": "молоко 2.5%",
       "replacement": "Soy Drink, Unsweetened",
       "grams": 800.0,
-      "rationale": "Replace cow's milk with unsweetened soy drink to achieve vegan status while providing close protein content for proper gel formation.",
+      "rationale": "Replace cow's milk with unsweetened soy drink as a vegan base with sufficient protein for gel formation.",
       "sources": [
-        "spec-soy-drink",
-        "spec-milk-2-5"
+        "spec-soy-drink"
       ],
       "confidence": "medium"
     },
@@ -15,7 +14,7 @@
       "original": "закваска",
       "replacement": "Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)",
       "grams": 0.4,
-      "rationale": "Use plant-based DVS culture within the maximum dosage limit to respect vegan requirements.",
+      "rationale": "Replace dairy-based starter with plant-based DVS culture within the maximum dosage limit.",
       "sources": [
         "spec-yogurt-starter"
       ],
@@ -25,10 +24,10 @@
       "original": "закваска",
       "replacement": "Soy Drink, Unsweetened",
       "grams": 9.6,
-      "rationale": "Make up the remaining mass of the starter substitution using the plant drink base.",
+      "rationale": "Make up the remaining weight of the starter replacement using the plant base.",
       "sources": [
-        "spec-yogurt-starter",
-        "spec-soy-drink"
+        "spec-soy-drink",
+        "spec-yogurt-starter"
       ],
       "confidence": "medium"
     }
@@ -56,8 +55,9 @@
     }
   },
   "warnings": [
-    "Plant drinks contain different protein profiles and may require hydrocolloids or stabilizers to achieve traditional dairy yogurt viscosity and prevent syneresis.",
-    "Plant-based cultures ferment at different rates compared to traditional dairy starters, requiring process adjustments for acidification.",
+    "Soy drink contains lower fat than cow's milk, which may affect creaminess and mouthfeel.",
+    "Plant-based substrates ferment differently and may require formulation adjustments to achieve proper set and viscosity.",
+    "Introduction of soy allergen.",
     "New allergen: soybeans (from Soy Drink, Unsweetened). Requires written sign-off from Quality and a label update before the first production run (guideline-allergen-policy)."
   ],
   "trace": [
@@ -71,22 +71,22 @@
         "ingredients": [
           {
             "name": "молоко 2.5%",
-            "english": "milk 2.5%",
+            "english": "Milk 2.5%",
             "spec": "spec-milk-2-5"
           },
           {
             "name": "цукор",
-            "english": "sugar",
+            "english": "Sucrose",
             "spec": "spec-sucrose"
           },
           {
             "name": "полуниця заморожена",
-            "english": "frozen strawberry",
+            "english": "Frozen strawberries",
             "spec": "spec-strawberry-frozen"
           },
           {
             "name": "закваска",
-            "english": "starter culture",
+            "english": "Yogurt starter",
             "spec": "spec-yogurt-starter"
           }
         ],
@@ -106,20 +106,20 @@
         ],
         "queries": [
           "plant based yogurt formulation vegan fermentation",
-          "soy milk yogurt texturizing and acidification",
-          "vegan strawberry yogurt recipe development"
+          "soy milk yogurt texture acidifiers",
+          "vegan yogurt starter culture application"
         ]
       },
       "message": null,
-      "duration_ms": 1605,
+      "duration_ms": 6586,
       "usage": {
         "provider": "gemini",
         "http_attempts": 1,
         "input_tokens": 682,
-        "output_tokens": 322,
+        "output_tokens": 323,
         "reasoning_tokens": 0,
-        "total_tokens": 1004,
-        "at_ms": 3
+        "total_tokens": 1005,
+        "at_ms": 2
       }
     },
     {
@@ -220,19 +220,31 @@
             "doc_id": "spec-milk-2-5",
             "title": "Milk 2.5% Fat — Ingredient Specification",
             "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
-            "score": 0.6498
+            "score": 0.6498,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           },
           {
             "doc_id": "spec-yogurt-starter",
             "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
             "chunk_text": "# Yogurt Starter Cultures\n\nYogurt is fermented by *Streptococcus thermophilus* and *Lactobacillus delbrueckii* subsp. *bulgaricus*, often with added *L. acidophilus* or *Bifidobacterium*. The same bacteria can be supplied in forms that differ in allergens and vegan status.\n\n## Forms of starter\n\n| Fo…",
-            "score": 0.641
+            "score": 0.641,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           },
           {
             "doc_id": "spec-milk-2-5",
             "title": "Milk 2.5% Fat — Ingredient Specification",
             "chunk_text": "% of the protein) coagulates at pH 4.6 and forms the yogurt gel. Protein below 2.8% gives a weak set and whey separation.\n- **Mouthfeel:** 2.5% fat gives a medium-creamy texture; below 1.5% fat add 1–2% skimmed milk powder to keep viscosity.\n\n## Typical dosage\n\n| Product | Dosage |\n|---|---|\n| Fruit…",
-            "score": 0.6393
+            "score": 0.6393,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           }
         ],
         "nutrients_per_100g": {
@@ -263,7 +275,7 @@
         }
       },
       "message": null,
-      "duration_ms": 74,
+      "duration_ms": 67,
       "usage": null
     },
     {
@@ -272,7 +284,7 @@
       "type": "tool_call",
       "tool": "search_knowledge_base",
       "arguments": {
-        "query": "soy milk yogurt texturizing and acidification"
+        "query": "soy milk yogurt texture acidifiers"
       },
       "result": {
         "chunks": [
@@ -280,19 +292,31 @@
             "doc_id": "spec-milk-2-5",
             "title": "Milk 2.5% Fat — Ingredient Specification",
             "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
-            "score": 0.654
-          },
-          {
-            "doc_id": "spec-milk-2-5",
-            "title": "Milk 2.5% Fat — Ingredient Specification",
-            "chunk_text": "% of the protein) coagulates at pH 4.6 and forms the yogurt gel. Protein below 2.8% gives a weak set and whey separation.\n- **Mouthfeel:** 2.5% fat gives a medium-creamy texture; below 1.5% fat add 1–2% skimmed milk powder to keep viscosity.\n\n## Typical dosage\n\n| Product | Dosage |\n|---|---|\n| Fruit…",
-            "score": 0.6166
+            "score": 0.6225,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           },
           {
             "doc_id": "spec-milk-2-5",
             "title": "Milk 2.5% Fat — Ingredient Specification",
             "chunk_text": "closest protein (3.0 g), gels well with plant cultures; introduces **soy** allergen |\n| Oat drink (spec-oat-drink) | 1:1 by weight | only 1.0 g protein: weak gel, add 1–2% starch or pectin; oats = gluten unless certified GF |\n| Coconut drink | 1:1 by weight | very low protein (0.2–0.5 g), needs thic…",
-            "score": 0.5833
+            "score": 0.5213,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
+          },
+          {
+            "doc_id": "spec-milk-2-5",
+            "title": "Milk 2.5% Fat — Ingredient Specification",
+            "chunk_text": "% of the protein) coagulates at pH 4.6 and forms the yogurt gel. Protein below 2.8% gives a weak set and whey separation.\n- **Mouthfeel:** 2.5% fat gives a medium-creamy texture; below 1.5% fat add 1–2% skimmed milk powder to keep viscosity.\n\n## Typical dosage\n\n| Product | Dosage |\n|---|---|\n| Fruit…",
+            "score": 0.5978,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           }
         ],
         "nutrients_per_100g": {
@@ -306,7 +330,7 @@
         }
       },
       "message": null,
-      "duration_ms": 72,
+      "duration_ms": 66,
       "usage": null
     },
     {
@@ -315,48 +339,63 @@
       "type": "tool_call",
       "tool": "search_knowledge_base",
       "arguments": {
-        "query": "vegan strawberry yogurt recipe development"
+        "query": "vegan yogurt starter culture application"
       },
       "result": {
         "chunks": [
           {
-            "doc_id": "spec-strawberry-frozen",
-            "title": "Strawberries, Frozen, Unsweetened — Ingredient Specification",
-            "chunk_text": "# Strawberries, Frozen (IQF), Unsweetened\n\n**Supplier grade:** whole or diced strawberries, individually quick frozen, no added sugar. Stored at −18 °C or below; thawed product is used within 24 h at 2–6 °C.\n\n## Function\n\n- **Fruit preparation:** main fruit in strawberry yogurts, fillings and smooth…",
-            "score": 0.623
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "# Yogurt Starter Cultures\n\nYogurt is fermented by *Streptococcus thermophilus* and *Lactobacillus delbrueckii* subsp. *bulgaricus*, often with added *L. acidophilus* or *Bifidobacterium*. The same bacteria can be supplied in forms that differ in allergens and vegan status.\n\n## Forms of starter\n\n| Fo…",
+            "score": 0.7274,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           },
           {
-            "doc_id": "spec-milk-2-5",
-            "title": "Milk 2.5% Fat — Ingredient Specification",
-            "chunk_text": "% of the protein) coagulates at pH 4.6 and forms the yogurt gel. Protein below 2.8% gives a weak set and whey separation.\n- **Mouthfeel:** 2.5% fat gives a medium-creamy texture; below 1.5% fat add 1–2% skimmed milk powder to keep viscosity.\n\n## Typical dosage\n\n| Product | Dosage |\n|---|---|\n| Fruit…",
-            "score": 0.603
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "-|---|\n| Allergens | milk | none |\n| Vegan | no | yes |\n\n- For a \"milk-free\" or \"vegan\" claim, replace a bulk starter or dairy DVS culture with a **certified dairy-free culture** and keep the supplier's vegan declaration on file (guideline-allergen-policy).\n- A dairy DVS culture in a plant product s…",
+            "score": 0.6046,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           },
           {
-            "doc_id": "spec-milk-2-5",
-            "title": "Milk 2.5% Fat — Ingredient Specification",
-            "chunk_text": "# Milk 2.5% Fat\n\n**Supplier grade:** pasteurised cow's milk, standardised to 2.5% fat, 2.9% protein. Stored at 2–6 °C, used within 72 h of opening. Main base for set and stirred yogurts, kefir and fermented desserts.\n\n## Function in fermented dairy\n\n- **Fermentation substrate:** lactose (4.7%) is th…",
-            "score": 0.5952
+            "doc_id": "spec-yogurt-starter",
+            "title": "Yogurt Starter Cultures (Dairy and Plant-Based) — Ingredient Specification",
+            "chunk_text": "Nutrients per 100 g\n\n| Nutrient | Bulk starter (fermented milk 2.5%) | Freeze-dried plant-based DVS |\n|---|---|---|\n| Energy | 55 kcal | 380 kcal |\n| Protein | 3.0 g | 2.0 g |\n| Fat | 2.5 g | 0.5 g |\n| Carbohydrates | 4.0 g | 90 g (maltodextrin carrier) |\n| of which sugars | 3.6 g | 5.0 g |\n| Max do…",
+            "score": 0.601,
+            "matched_by": [
+              "vector",
+              "fulltext"
+            ]
           }
         ],
         "nutrients_per_100g": {
-          "spec-strawberry-frozen": {
-            "kcal": 35.0,
-            "fat_g": 0.1,
-            "carbs_g": 9.1,
-            "sugar_g": 4.6,
-            "protein_g": 0.4
-          },
-          "spec-milk-2-5": {
-            "kcal": 53.0,
-            "fat_g": 2.5,
-            "carbs_g": 4.7,
-            "sugar_g": 4.7,
-            "protein_g": 2.9
+          "spec-yogurt-starter": {
+            "Freeze-dried plant-based DVS": {
+              "kcal": 380.0,
+              "fat_g": 0.5,
+              "carbs_g": 90.0,
+              "sugar_g": 5.0,
+              "protein_g": 2.0,
+              "max_dosage_pct": 0.05
+            },
+            "Bulk starter (fermented milk 2.5%)": {
+              "kcal": 55.0,
+              "fat_g": 2.5,
+              "carbs_g": 4.0,
+              "sugar_g": 3.6,
+              "protein_g": 3.0
+            }
           }
         }
       },
       "message": null,
-      "duration_ms": 72,
+      "duration_ms": 66,
       "usage": null
     },
     {
@@ -396,11 +435,10 @@
             "nutrients_source": "spec-soy-drink",
             "nutrients_column": null,
             "sources": [
-              "spec-soy-drink",
-              "spec-milk-2-5"
+              "spec-soy-drink"
             ],
-            "rationale": "Replace cow's milk with unsweetened soy drink to achieve vegan status while providing close protein content for proper gel formation.",
-            "confidence": "medium"
+            "rationale": "Replace cow's milk with unsweetened soy drink as a vegan base with sufficient protein for gel formation.",
+            "confidence": "high"
           },
           {
             "original": "закваска",
@@ -411,8 +449,8 @@
             "sources": [
               "spec-yogurt-starter"
             ],
-            "rationale": "Use plant-based DVS culture within the maximum dosage limit to respect vegan requirements.",
-            "confidence": "medium"
+            "rationale": "Replace dairy-based starter with plant-based DVS culture within the maximum dosage limit.",
+            "confidence": "high"
           },
           {
             "original": "закваска",
@@ -421,11 +459,11 @@
             "nutrients_source": "spec-soy-drink",
             "nutrients_column": null,
             "sources": [
-              "spec-yogurt-starter",
-              "spec-soy-drink"
+              "spec-soy-drink",
+              "spec-yogurt-starter"
             ],
-            "rationale": "Make up the remaining mass of the starter substitution using the plant drink base.",
-            "confidence": "medium"
+            "rationale": "Make up the remaining weight of the starter replacement using the plant base.",
+            "confidence": "high"
           }
         ],
         "allergens_before": [
@@ -435,20 +473,21 @@
           "soybeans"
         ],
         "warnings": [
-          "Plant drinks contain different protein profiles and may require hydrocolloids or stabilizers to achieve traditional dairy yogurt viscosity and prevent syneresis.",
-          "Plant-based cultures ferment at different rates compared to traditional dairy starters, requiring process adjustments for acidification."
+          "Soy drink contains lower fat than cow's milk, which may affect creaminess and mouthfeel.",
+          "Plant-based substrates ferment differently and may require formulation adjustments to achieve proper set and viscosity.",
+          "Introduction of soy allergen."
         ]
       },
       "message": null,
-      "duration_ms": 2497,
+      "duration_ms": 2742,
       "usage": {
         "provider": "gemini",
         "http_attempts": 1,
-        "input_tokens": 2805,
-        "output_tokens": 689,
+        "input_tokens": 3227,
+        "output_tokens": 674,
         "reasoning_tokens": 0,
-        "total_tokens": 3494,
-        "at_ms": 1687
+        "total_tokens": 3901,
+        "at_ms": 6660
       }
     },
     {
@@ -639,6 +678,39 @@
       },
       "message": null,
       "duration_ms": 0,
+      "usage": null
+    },
+    {
+      "step": 10,
+      "iteration": 4,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "confidence of 'молоко 2.5%' -> 'Soy Drink, Unsweetened' lowered from high to medium: no trial report among sources ['spec-soy-drink']",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 11,
+      "iteration": 4,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "confidence of 'закваска' -> 'Yogurt Starter Cultures (Dairy and Plant-Based) (Freeze-dried plant-based DVS)' lowered from high to medium: no trial report among sources ['spec-yogurt-starter']",
+      "duration_ms": null,
+      "usage": null
+    },
+    {
+      "step": 12,
+      "iteration": 4,
+      "type": "correction",
+      "tool": null,
+      "arguments": null,
+      "result": null,
+      "message": "confidence of 'закваска' -> 'Soy Drink, Unsweetened' lowered from high to medium: no trial report among sources ['spec-soy-drink', 'spec-yogurt-starter']",
+      "duration_ms": null,
       "usage": null
     }
   ]
