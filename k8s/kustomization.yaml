@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Applied by `kubectl apply -k k8s/`. Left out on purpose: secret.example.yaml (the real
+# Secrets are made from .env, never committed) and ingest-job.yaml (run by `make k8s-ingest`).
+resources:
+  - namespace.yaml
+  - postgres-service.yaml
+  - postgres-statefulset.yaml
+  - api-service.yaml
+  - api-deployment.yaml

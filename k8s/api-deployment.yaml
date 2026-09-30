@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: pet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      initContainers:
+        # The api runs pool + migrations in its lifespan: started before Postgres is ready, it
+        # would crash and restart (CrashLoopBackOff) until the database comes up.
+        - name: wait-for-postgres
+          image: pgvector/pgvector:0.8.6-pg16-bookworm
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - until pg_isready -h postgres -U postgres -d reformulation; do sleep 2; done
+      containers:
+        - name: api
+          # A fixed tag loaded into kind (`kind load docker-image`), never pulled: with a floating
+          # tag the node would try Docker Hub and fail with ImagePullBackOff.
+          image: pet-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          # LLM keys and settings: a Secret made from .env by `make k8s-up`, not in git.
+          # Optional, like in compose: without keys the api starts and LLM calls return 503.
+          envFrom:
+            - secretRef:
+                name: pet-llm
+                optional: true
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pet-postgres
+                  key: password
+            # Explicit env wins over envFrom: .env's DATABASE_URL points at localhost.
+            - name: DATABASE_URL
+              value: postgresql://postgres:$(POSTGRES_PASSWORD)@postgres:5432/reformulation
+          # Measured: 3.1-3.4 s from process start to /health 200 (warm, docker compose). A
+          # cold pod is slower: 30 x 2 s = 60 s before liveness/readiness take over.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 2
+            failureThreshold: 30
+          # /health is 503 while the database is down: that takes the pod out of the Service
+          # (readiness) but must not restart a healthy process (liveness only checks the port).
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 3
+          # ~345 MiB in use with the embedding model loaded (docker stats); headroom for
+          # embedding batches. No CPU limit: throttling would stretch the model load.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi

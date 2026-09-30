@@ -52,6 +52,9 @@ ENV PATH="/app/.venv/bin:$PATH" \
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /opt/hf /opt/hf
 COPY migrations ./migrations
+# The corpus (~100 KB) for the ingest CLI where nothing mounts it (the k8s ingest Job);
+# docker compose still mounts ./data over it, so editing a document needs no rebuild.
+COPY data/corpus ./data/corpus
 COPY app ./app
 
 EXPOSE 8000

@@ -1,0 +1,41 @@
+# Not in kustomization.yaml: a Job's pod template is immutable, so re-applying the stack would
+# fail. `make k8s-ingest` deletes the previous Job and applies this file.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingest
+  namespace: pet
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-postgres
+          image: pgvector/pgvector:0.8.6-pg16-bookworm
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - until pg_isready -h postgres -U postgres -d reformulation; do sleep 2; done
+      containers:
+        - name: ingest
+          # Same image as the api: the corpus (data/corpus/) is baked into it, since kind has
+          # no convenient hostPath and kustomize will not read files outside k8s/.
+          image: pet-api:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "app.ingest", "data/corpus/"]
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pet-postgres
+                  key: password
+            - name: DATABASE_URL
+              value: postgresql://postgres:$(POSTGRES_PASSWORD)@postgres:5432/reformulation
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
