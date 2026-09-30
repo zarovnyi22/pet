@@ -29,6 +29,9 @@ NUTRIENT_ROWS = {
     "fat": "fat_g",
     "carbohydrates": "carbs_g",
     "of which sugars": "sugar_g",
+    # Not a nutrient: calc_nutrition only weighs the five above. The pipeline uses it for the
+    # sucrose equivalent of sugars and sweeteners.
+    "relative sweetness (sucrose = 1)": "sweetness",
 }
 NUMBER = re.compile(r"\d+(?:\.\d+)?")
 

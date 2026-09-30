@@ -40,4 +40,22 @@ def test_every_spec_in_the_corpus_has_all_five_nutrients(path):
     table = parse_nutrients_table(parse_markdown(path.read_text()).content)
     assert table, f"{path.name}: no nutrient table parsed"
     for column, values in table.items():
-        assert set(values) == {"kcal", "protein_g", "fat_g", "carbs_g", "sugar_g"}, column
+        nutrients = set(values) - {"sweetness"}  # only sugars and sweeteners state one
+        assert nutrients == {"kcal", "protein_g", "fat_g", "carbs_g", "sugar_g"}, column
+
+
+@pytest.mark.parametrize(
+    ("doc_id", "sweetness"),
+    [
+        ("spec-sucrose", 1.0),
+        ("spec-erythritol", 0.65),  # "0.65 (range 0.6–0.7)"
+        ("spec-polydextrose", 0.05),
+        ("spec-stevia", 250),
+    ],
+)
+def test_relative_sweetness_row_is_read_as_sweetness(doc_id, sweetness):
+    assert table_of(doc_id)["Value"]["sweetness"] == sweetness
+
+
+def test_other_specs_have_no_sweetness():
+    assert "sweetness" not in table_of("spec-milk-2-5")["Value"]

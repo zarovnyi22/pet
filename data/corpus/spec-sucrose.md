@@ -48,6 +48,7 @@ None of the 14 EU allergens.
 | Fat | 0 g |
 | Carbohydrates | 100 g |
 | of which sugars | 100 g |
+| Relative sweetness (sucrose = 1) | 1.0 (reference) |
 
 ## Substitutes for sugar reduction
 

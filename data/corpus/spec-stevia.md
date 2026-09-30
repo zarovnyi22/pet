@@ -45,6 +45,7 @@ None of the 14 EU allergens.
 | Fat | 0 g |
 | Carbohydrates | 0 g |
 | of which sugars | 0 g |
+| Relative sweetness (sucrose = 1) | 250 (range 200–300) |
 
 At the doses used, the nutrient contribution is zero.
 

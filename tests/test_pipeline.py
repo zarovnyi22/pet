@@ -97,6 +97,8 @@ def plan(strawberry_spec: str | None = "spec-strawberry-frozen") -> str:
                 {"english": "soy drink", "spec": "spec-soy-drink"},
                 {"english": "erythritol", "spec": "spec-erythritol"},
                 {"english": "oat drink", "spec": "spec-oat-drink"},
+                {"english": "polydextrose", "spec": "spec-polydextrose"},
+                {"english": "stevia", "spec": "spec-stevia"},
             ],
             "queries": ["milk-free yogurt trial"],
         },
@@ -464,3 +466,92 @@ async def test_reduce_sugar_warns_about_unknown_status_instead_of_refusing():
     assert "Allergen status unknown for полуниця заморожена (no source): check the label." in (
         out.warnings
     )
+
+
+# --- sweetness ------------------------------------------------------------------------------
+
+SUGAR_30 = YOGURT.model_copy(update={"goal": "reduce_sugar", "goal_params": GoalParams(percent=30)})
+POLYDEXTROSE = ERYTHRITOL | {
+    "replacement": "полідекстроза",
+    "nutrients_source": "spec-polydextrose",
+    "sources": ["spec-polydextrose"],
+}
+STEVIA = ERYTHRITOL | {
+    "replacement": "стевія",
+    "grams": 0.1,
+    "nutrients_source": "spec-stevia",
+    "sources": ["spec-stevia"],
+}
+
+
+def sweetness_warnings(out) -> list[str]:
+    return [w for w in out.warnings if "weetness" in w]
+
+
+async def test_erythritol_and_polydextrose_half_and_half_warn_about_sweetness():
+    answer = choice(substitutions=[ERYTHRITOL, POLYDEXTROSE], allergens_after=["milk"])
+    out = await run(FakeLLM([plan(), answer]), SUGAR_30)
+
+    # 90 g sucrose -> 48.8 g sucrose + 20.6 g erythritol x 0.65 + 20.6 g polydextrose x 0.05.
+    assert [s.grams for s in out.substitutions] == [20.6, 20.6]
+    assert sweetness_warnings(out) == [
+        "Sweetness drops by 30%: sucrose equivalent 90.0 g -> 63.2 g per batch. About "
+        "0.09-0.11 g steviol glycosides (0.011% of the product) would close the 26.8 g gap "
+        "(spec-stevia: 0.01% Reb A ~ 2.5-3% sucrose); not added to the recipe."
+    ]
+    assert [s.replacement for s in out.substitutions] == ["еритрит", "полідекстроза"]  # advice only
+
+
+async def test_enough_stevia_in_the_blend_gives_no_sweetness_warning():
+    answer = choice(substitutions=[ERYTHRITOL, POLYDEXTROSE, STEVIA], allergens_after=["milk"])
+    out = await run(FakeLLM([plan(), answer]), SUGAR_30)
+
+    assert out.substitutions[2].grams == 0.1  # 0.1 g x 250 = 25 g sucrose equivalent
+    assert sweetness_warnings(out) == []
+
+
+async def test_sugar_replacement_without_sweetness_data_is_flagged():
+    oat = ERYTHRITOL | {"replacement": "вівсяний напій", "nutrients_source": "spec-oat-drink"}
+    out = await run(
+        FakeLLM([plan(), choice(substitutions=[oat], allergens_after=["milk"])]), SUGAR_30
+    )
+
+    assert sweetness_warnings(out) == [
+        "Sweetness of вівсяний напій is unknown (no relative sweetness in its source): the "
+        "change in sweetness was not checked."
+    ]
+
+
+async def test_sweetness_passes_the_provenance_check_and_stays_out_of_nutrition():
+    answer = choice(substitutions=[ERYTHRITOL, POLYDEXTROSE], allergens_after=["milk"])
+    out = await run(FakeLLM([plan(), answer]), SUGAR_30)
+
+    calcs = [s for s in out.trace if s.tool == "calc_nutrition"]
+    sugar = calcs[0].arguments["ingredients"][1]
+    assert sugar["nutrients_per_100g"]["sweetness"] == 1.0  # sent to calc_nutrition...
+    assert [c.result["rejected"] for c in calcs] == [[], []]  # ...and backed by the spec
+    assert "sweetness" not in out.nutrition_per_100g.after.model_dump()
+
+
+async def test_toolbox_backs_a_copied_sweetness_and_rejects_an_invented_one():
+    tools = Toolbox(pool=None, embedder=None, http=None)
+    tools.remember_table("spec-erythritol", TABLES["spec-erythritol"])
+    copied = TABLES["spec-erythritol"]["Value"]
+    ingredients = [
+        {
+            "name": "a",
+            "grams": 50,
+            "nutrients_per_100g": copied,
+            "nutrients_source": "spec-erythritol",
+        },
+        {
+            "name": "b",
+            "grams": 50,
+            "nutrients_per_100g": copied | {"sweetness": 0.9},
+            "nutrients_source": "spec-erythritol",
+        },
+    ]
+    result = await tools.execute("calc_nutrition", {"ingredients": ingredients})
+
+    assert [(r["ingredient"], r["nutrients"]) for r in result["rejected"]] == [("b", ["sweetness"])]
+    assert result["per_100g"]["carbs_g"] == 100  # nutrients themselves are unaffected

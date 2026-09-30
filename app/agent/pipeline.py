@@ -49,6 +49,13 @@ from app.schemas import (
 # Aim one point past the requested sugar cut, so rounding grams can never miss the goal.
 SUGAR_MARGIN_POINTS = 1.0
 PROTEIN_DROP_WARNING = 0.20
+# Sucrose equivalent (grams x relative sweetness) may fall this much before a warning: sugar
+# per 100 g is guaranteed by code, sweetness is not (erythritol 0.65, polydextrose 0.05).
+SWEETNESS_DROP_WARNING = 0.15
+# spec-stevia: "0.01% Reb A replaces the sweetness of about 2.5-3% sucrose", i.e. 1 g of
+# steviol glycosides ~ 250-300 g sucrose; bitter above 0.05% of product weight.
+STEVIA_SUCROSE_EQUIVALENT = (250, 300)
+STEVIA_MAX_SHARE = 0.0005
 EXCERPT_CHARS = 400
 
 # Common non-canonical names models use for the 14 EU allergens.
@@ -340,6 +347,7 @@ class ReformulationPipeline:
                     f"{target}; substitute a sugary ingredient whose sugar is known"
                 )
         await self._check_allergens(choice, request, before_items, after_items)
+        self._check_sweetness(choice, originals, replacements, before_items, after_items)
         return _Computed(choice=choice, before=before, after=after)
 
     async def _check_allergens(
@@ -445,6 +453,54 @@ class ReformulationPipeline:
                     message=f"{field}: added {added} stated by the sources of "
                     f"{sorted({n for a in added for n in data[a]})}",
                 )
+
+    def _check_sweetness(
+        self,
+        choice: Choice,
+        originals: dict[str, Original],
+        replacements: list[tuple[ChosenSubstitution, dict[str, float]]],
+        before_items: list[dict[str, Any]],
+        after_items: list[dict[str, Any]],
+    ) -> None:
+        """Warn when replacing a sweet ingredient loses sweetness; stevia is advised, not added.
+
+        Sucrose equivalent = sum of grams x relative sweetness over ingredients whose source
+        states it (specs of sugar and sweeteners). Checked only when a substituted original has
+        a sweetness; a replacement for it without one makes the check impossible, said so.
+        """
+        sweet = [
+            (sub, n)
+            for sub, n in replacements
+            if "sweetness" in originals.get(sub.original, Original(None, None, {})).nutrients
+        ]
+        if not sweet:
+            return
+        unknown = [sub.replacement for sub, n in sweet if "sweetness" not in n]
+        if unknown:
+            choice.warnings.append(
+                f"Sweetness of {', '.join(unknown)} is unknown (no relative sweetness in its "
+                "source): the change in sweetness was not checked."
+            )
+            return
+        before, after = _sucrose_equivalent(before_items), _sucrose_equivalent(after_items)
+        drop = (before - after) / before if before else 0
+        if drop <= SWEETNESS_DROP_WARNING:
+            return
+        gap = before - after
+        low, high = (gap / ratio for ratio in reversed(STEVIA_SUCROSE_EQUIVALENT))
+        share = high / sum(i["grams"] for i in after_items)
+        message = (
+            f"Sweetness drops by {drop:.0%}: sucrose equivalent {before:.1f} g -> {after:.1f} g "
+            f"per batch. About {low:.2f}-{high:.2f} g steviol glycosides ({share:.3%} of the "
+            f"product) would close the {gap:.1f} g gap (spec-stevia: 0.01% Reb A ~ 2.5-3% "
+            "sucrose); not added to the recipe."
+        )
+        if share > STEVIA_MAX_SHARE:
+            message += (
+                f" That is above the {STEVIA_MAX_SHARE:.2%} bitterness limit (spec-stevia): "
+                "close only part of the gap with stevia."
+            )
+        choice.warnings.append(message)
 
     def _solve_sugar_dose(
         self,
@@ -636,6 +692,10 @@ def _item(
         "nutrients_source": source,
         "nutrients_column": column,
     }
+
+
+def _sucrose_equivalent(items: list[dict[str, Any]]) -> float:
+    return sum(i["grams"] * i["nutrients_per_100g"].get("sweetness", 0) for i in items)
 
 
 def _unknown_status(item: dict[str, Any], facts: dict[str, Any] | None, goal: str) -> str | None:

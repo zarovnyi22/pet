@@ -45,6 +45,7 @@ None of the 14 EU allergens.
 | Fat | 0 g |
 | Carbohydrates | 100 g (polyols) |
 | of which sugars | 0 g |
+| Relative sweetness (sucrose = 1) | 0.65 (range 0.6–0.7) |
 
 ## Labelling
 
